@@ -90,4 +90,31 @@ end
 
 disp('FIN')
 
-    
+
+%% testing plotting
+
+figure(1)
+fastscatter(xm(im>1)/1e3,ym(im>1) /1e3,log10(epsIIm(im>1)),'markersize',2);
+axis ij
+axis equal
+%grid oﬀ
+colorbar
+%caxis([-18 -13])
+
+figure(2)
+plot(topo_x,topo_y, 'k')
+set(gca,'YDir','reverse')
+
+%% to do:
+% Sister resume: SiStER_RESUME.m
+% auto send outputs to a folder: SiStER_MoveFiles2Folder.m
+% Auto plot outputs SiStER_Plot_ScatterFrames.m
+
+% Resume cancelled operation:
+SiStER_RESUME.m
+
+% Move Outputs:
+SiStER_MoveFiles2Folder.m
+
+% Plot each timestep, save as jpg/png/pdf
+SiStER_Plot_ScatterFrames.m
