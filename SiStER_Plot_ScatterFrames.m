@@ -5,7 +5,7 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
 %   SiStER_Plot_ScatterFrames('Wedge_default') % Will prompt for variable
 %   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'markerSize', 15, 'figWidth', 1200)
 %   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'useParallel', true) 
-%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'showFigure', false) 
+%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'colormap', 'turbo', 'bgColor', 'k') 
 
     % 1. Enforce required directory input
     if nargin < 1 || isempty(targetDir)
@@ -58,9 +58,11 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     addParameter(p, 'figHeight', 600, @isnumeric);
     addParameter(p, 'cLimit', [], @isnumeric);      
     addParameter(p, 'imgFormat', 'png', @ischar); 
-    addParameter(p, 'showFigure', false, @islogical);  % Toggle visible plotting
-    addParameter(p, 'useParallel', true, @islogical); % Enable parfor loop
-    % ------------------------------------------
+    addParameter(p, 'showFigure', false, @islogical); 
+    addParameter(p, 'useParallel', true, @islogical); 
+    addParameter(p, 'colormap', 'parula'); % Can be string (e.g. 'turbo') or custom matrix
+    addParameter(p, 'bgColor', 'w');       % Can be 'w', 'k', or RGB triplet [1 1 1]
+    % ---------------------------------------
     
     parse(p, varargin{:});
     opts = p.Results;
@@ -135,22 +137,20 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
 
     % 7. PLOTTING LOOP (Parallel vs Sequential)
     if opts.useParallel
-        % Parallel mode always plots headlessly (requires Parallel Computing Toolbox)
         parfor k = 1:numFiles
             fileName = matFiles(k).name;
             fullPath = fullfile(targetDir, fileName);
             
-            % Create an invisible figure for each worker
-            fig = figure('Visible', 'off', 'Position', [100, 100, opts.figWidth, opts.figHeight]);
+            % Create figure using specified background color
+            fig = figure('Visible', 'off', 'Position', [100, 100, opts.figWidth, opts.figHeight], 'Color', opts.bgColor);
             
-            % Call helper function to handle the actual plotting
             processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitleVar, xLims, yLims, cLims, outDir, k);
             close(fig);
         end
     else
-        % Sequential mode reuses a single figure for speed
         if opts.showFigure, vis = 'on'; else, vis = 'off'; end
-        fig = figure('Visible', vis, 'Position', [100, 100, opts.figWidth, opts.figHeight]);
+        % Create figure using specified background color
+        fig = figure('Visible', vis, 'Position', [100, 100, opts.figWidth, opts.figHeight], 'Color', opts.bgColor);
         
         for k = 1:numFiles
             fileName = matFiles(k).name;
@@ -193,29 +193,37 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
     cla;
     fastscatter(X, Y, Z, 'markersize', opts.markerSize);
     
-    if isfield(data, 'time')
-        timeMyrs = data.time / (365.25 * 24 * 3600 * 1e6);
-        title(sprintf('%s | Time: %.3f Myrs (File: %s)', plotTitleVar, timeMyrs, fileName), 'FontSize', 14);
+    % Text color handling (if black background is chosen, make text white)
+    if isequal(opts.bgColor, 'k') || isequal(opts.bgColor, [0 0 0]) || isequal(opts.bgColor, 'black')
+        txtColor = 'w';
     else
-        title(sprintf('%s | File: %s', plotTitleVar, fileName), 'FontSize', 14);
+        txtColor = 'k';
     end
     
-    xlabel([strrep(opts.xVar, '_', '\_') ' (km)'], 'FontSize', 12);
-    ylabel([strrep(opts.yVar, '_', '\_') ' (km)'], 'FontSize', 12);
+    if isfield(data, 'time')
+        timeMyrs = data.time / (365.25 * 24 * 3600 * 1e6);
+        title(sprintf('%s | Time: %.3f Myrs (File: %s)', plotTitleVar, timeMyrs, fileName), 'FontSize', 14, 'Color', txtColor);
+    else
+        title(sprintf('%s | File: %s', plotTitleVar, fileName), 'FontSize', 14, 'Color', txtColor);
+    end
     
-    % Lock layout with global limits
+    xlabel([strrep(opts.xVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
+    ylabel([strrep(opts.yVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
+    
+    % Lock layout with global limits and set axes color
     axis equal;
     xlim(xLims);
     ylim(yLims);
-    set(gca, 'YDir', 'reverse', 'FontSize', 12);
+    set(gca, 'YDir', 'reverse', 'FontSize', 12, 'Color', opts.bgColor, 'XColor', txtColor, 'YColor', txtColor);
     
-    colormap('parula');
-    cb = colorbar;
-    clim(cLims); % Forces colorbar tick widths to remain completely static
-    ylabel(cb, plotTitleVar, 'FontSize', 12);
+    % Apply custom colormap
+    colormap(opts.colormap);
+    cb = colorbar('Color', txtColor);
+    clim(cLims); 
+    ylabel(cb, plotTitleVar, 'FontSize', 12, 'Color', txtColor);
     
-    % Export
+    % Export (passing BackgroundColor ensures exportgraphics doesn't default to white)
     drawnow;
     imgName = fullfile(outDir, sprintf('frame_%04d.%s', k, opts.imgFormat));
-    exportgraphics(fig, imgName, 'Resolution', 300);
+    exportgraphics(fig, imgName, 'Resolution', 300, 'BackgroundColor', opts.bgColor);
 end
