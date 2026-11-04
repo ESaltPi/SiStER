@@ -3,8 +3,9 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
 %
 % Usage:
 %   SiStER_Plot_ScatterFrames('Wedge_default') % Will prompt for variable
-%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'markerSize', 15, 'figWidth', 1200) 
-%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'markerSize', 20, 'figWidth', 1920, 'figHeight', 1080)
+%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'markerSize', 15, 'figWidth', 1200)
+%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'useParallel', true) 
+%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'showFigure', false) 
 
     % 1. Enforce required directory input
     if nargin < 1 || isempty(targetDir)
@@ -52,18 +53,26 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     addParameter(p, 'yVar', 'ym', @ischar);
     addParameter(p, 'logZ', [], @(x) islogical(x) || isempty(x)); 
     addParameter(p, 'filterAir', true, @islogical);
-    addParameter(p, 'markerSize', 10, @isnumeric);   % Increased default marker size
-    addParameter(p, 'figWidth', 1000, @isnumeric);   % Default figure width in pixels
-    addParameter(p, 'figHeight', 600, @isnumeric);   % Default figure height in pixels
+    addParameter(p, 'markerSize', 10, @isnumeric);
+    addParameter(p, 'figWidth', 1000, @isnumeric);
+    addParameter(p, 'figHeight', 600, @isnumeric);
     addParameter(p, 'cLimit', [], @isnumeric);      
-    addParameter(p, 'pauseTime', 0.1, @isnumeric);  
     addParameter(p, 'imgFormat', 'png', @ischar); 
+    addParameter(p, 'showFigure', false, @islogical);  % Toggle visible plotting
+    addParameter(p, 'useParallel', true, @islogical); % Enable parfor loop
+    % ------------------------------------------
     
     parse(p, varargin{:});
     opts = p.Results;
     
     if isempty(opts.logZ)
         opts.logZ = any(strcmp(zVar, {'epsIIm', 'etam'}));
+    end
+    
+    if opts.logZ
+        plotTitleVar = ['log_{10}(' strrep(zVar, '_', '\_') ')'];
+    else
+        plotTitleVar = strrep(zVar, '_', '\_');
     end
     
     % 4. Locate and sort .mat files
@@ -79,6 +88,7 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     end
     [~, sortIdx] = sort(fileNums);
     matFiles = matFiles(sortIdx);
+    numFiles = length(matFiles);
     
     % 5. Create the output image directory
     outDir = fullfile(targetDir, sprintf('%s_plots', zVar));
@@ -87,104 +97,125 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     end
     fprintf('Plots will be saved as .%s in: %s\n', opts.imgFormat, outDir);
     
-    % 6. Set up the figure with FIXED DIMENSIONS
-    fig = figure('Name', 'SiStER Plotter', 'Color', 'w', ...
-                 'Position', [100, 100, opts.figWidth, opts.figHeight]);
-    
     varsToLoad = unique({opts.xVar, opts.yVar, zVar, 'time', 'im'}); 
     
-    % 7. Loop through and plot/save
-    for k = 1:length(matFiles)
-        fileName = matFiles(k).name;
-        fullPath = fullfile(targetDir, fileName);
-
-        try
-            data = load(fullPath, varsToLoad{:});
-        catch
-            warning('Could not load %s. Skipping.', fileName);
-            continue;
-        end
-
-        if ~isfield(data, opts.xVar) || ~isfield(data, opts.yVar) || ~isfield(data, zVar)
-            warning('Required variables not found in %s. Skipping.', fileName);
-            continue;
-        end
-
-        X = data.(opts.xVar);
-        Y = data.(opts.yVar);
-        Z = data.(zVar);
-
+    % 6. PRE-SCAN: Find Global Min/Max to lock dimensions perfectly
+    fprintf('Scanning %d files for global limits...\n', numFiles);
+    xMin = inf; xMax = -inf; yMin = inf; yMax = -inf; zMin = inf; zMax = -inf;
+    
+    for k = 1:numFiles
+        data = load(fullfile(targetDir, matFiles(k).name), varsToLoad{:});
+        if ~isfield(data, opts.xVar) || ~isfield(data, zVar), continue; end
+        
+        X = data.(opts.xVar); Y = data.(opts.yVar); Z = data.(zVar);
         if strcmp(opts.xVar, 'xm'), X = X / 1e3; end
         if strcmp(opts.yVar, 'ym'), Y = Y / 1e3; end
-
+        
         if opts.filterAir && isfield(data, 'im')
             mask = data.im > 1;
-            X = X(mask);
-            Y = Y(mask);
-            Z = Z(mask);
+            X = X(mask); Y = Y(mask); Z = Z(mask);
         end
-
-        if opts.logZ
-            Z = log10(Z);
-            plotTitleVar = ['log_{10}(' strrep(zVar, '_', '\_') ')'];
-        else
-            plotTitleVar = strrep(zVar, '_', '\_');
-        end
-
-        cla;
-        fastscatter(X, Y, Z, 'markersize', opts.markerSize);
-
-        % --- UPDATE 1: Age to an extra decimal place (%.3f) & Lock Font Sizes ---
-        if isfield(data, 'time')
-            timeMyrs = data.time / (365.25 * 24 * 3600 * 1e6);
-            title(sprintf('%s | Time: %.3f Myrs (File: %s)', plotTitleVar, timeMyrs, fileName), 'FontSize', 14);
-        else
-            title(sprintf('%s | File: %s', plotTitleVar, fileName), 'FontSize', 14);
-        end
-
-        xlabel([strrep(opts.xVar, '_', '\_') ' (km)'], 'FontSize', 12);
-        ylabel([strrep(opts.yVar, '_', '\_') ' (km)'], 'FontSize', 12);
-
-        % --- UPDATE 2: Lock Data Limits ---
-        axis equal; 
-        if k == 1
-            axis tight;
-            % Capture the exact coordinate limits from the first frame
-            xLims = xlim;
-            yLims = ylim;
-        else
-            % Force all subsequent frames to use the first frame's limits
-            xlim(xLims);
-            ylim(yLims);
-        end
-
-        set(gca, 'YDir', 'reverse', 'FontSize', 12);
-        colormap('parula');
-        cb = colorbar;
-        ylabel(cb, plotTitleVar, 'FontSize', 12);
-
-        if ~isempty(opts.cLimit)
-            clim(opts.cLimit); 
-        end
-
-        % --- UPDATE 3: Lock Axes and Colorbar Dimensions ---
-        if k == 1
-            % Capture the physical layout dimensions after the first frame renders
-            drawnow; 
-            axPos = get(gca, 'Position');
-            cbPos = get(cb, 'Position');
-        else
-            % Force the layout box to stay exactly the same
-            set(gca, 'Position', axPos);
-            set(cb, 'Position', cbPos);
-        end
-
-        drawnow;
-        pause(opts.pauseTime);
-
-        imgName = fullfile(outDir, sprintf('frame_%04d.%s', k, opts.imgFormat));
-        exportgraphics(fig, imgName, 'Resolution', 300);
+        if opts.logZ, Z = log10(Z); end
+        
+        if isempty(X), continue; end
+        
+        xMin = min(xMin, min(X(:))); xMax = max(xMax, max(X(:)));
+        yMin = min(yMin, min(Y(:))); yMax = max(yMax, max(Y(:)));
+        zMin = min(zMin, min(Z(:))); zMax = max(zMax, max(Z(:)));
     end
     
-    fprintf('Finished saving %d frames to %s\n', length(matFiles), outDir);
+    xLims = [xMin, xMax];
+    yLims = [yMin, yMax];
+    if ~isempty(opts.cLimit)
+        cLims = opts.cLimit; 
+    else
+        cLims = [zMin, zMax];
+    end
+    fprintf('Global limits locked. Plotting...\n');
+
+    % 7. PLOTTING LOOP (Parallel vs Sequential)
+    if opts.useParallel
+        % Parallel mode always plots headlessly (requires Parallel Computing Toolbox)
+        parfor k = 1:numFiles
+            fileName = matFiles(k).name;
+            fullPath = fullfile(targetDir, fileName);
+            
+            % Create an invisible figure for each worker
+            fig = figure('Visible', 'off', 'Position', [100, 100, opts.figWidth, opts.figHeight]);
+            
+            % Call helper function to handle the actual plotting
+            processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitleVar, xLims, yLims, cLims, outDir, k);
+            close(fig);
+        end
+    else
+        % Sequential mode reuses a single figure for speed
+        if opts.showFigure, vis = 'on'; else, vis = 'off'; end
+        fig = figure('Visible', vis, 'Position', [100, 100, opts.figWidth, opts.figHeight]);
+        
+        for k = 1:numFiles
+            fileName = matFiles(k).name;
+            fullPath = fullfile(targetDir, fileName);
+            processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitleVar, xLims, yLims, cLims, outDir, k);
+        end
+        close(fig);
+    end
+    
+    fprintf('Finished saving %d frames to %s\n', numFiles, outDir);
+end
+
+% =========================================================================
+% LOCAL HELPER FUNCTION: Handles the plotting and exporting for a single frame
+% =========================================================================
+function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitleVar, xLims, yLims, cLims, outDir, k)
+    try
+        data = load(fullPath, varsToLoad{:});
+    catch
+        warning('Could not load %s. Skipping.', fileName);
+        return;
+    end
+    
+    if ~isfield(data, opts.xVar) || ~isfield(data, opts.yVar) || ~isfield(data, zVar)
+        return;
+    end
+    
+    X = data.(opts.xVar); Y = data.(opts.yVar); Z = data.(zVar);
+    if strcmp(opts.xVar, 'xm'), X = X / 1e3; end
+    if strcmp(opts.yVar, 'ym'), Y = Y / 1e3; end
+    
+    if opts.filterAir && isfield(data, 'im')
+        mask = data.im > 1;
+        X = X(mask); Y = Y(mask); Z = Z(mask);
+    end
+    if opts.logZ, Z = log10(Z); end
+    
+    % Draw Frame
+    figure(fig);
+    cla;
+    fastscatter(X, Y, Z, 'markersize', opts.markerSize);
+    
+    if isfield(data, 'time')
+        timeMyrs = data.time / (365.25 * 24 * 3600 * 1e6);
+        title(sprintf('%s | Time: %.3f Myrs (File: %s)', plotTitleVar, timeMyrs, fileName), 'FontSize', 14);
+    else
+        title(sprintf('%s | File: %s', plotTitleVar, fileName), 'FontSize', 14);
+    end
+    
+    xlabel([strrep(opts.xVar, '_', '\_') ' (km)'], 'FontSize', 12);
+    ylabel([strrep(opts.yVar, '_', '\_') ' (km)'], 'FontSize', 12);
+    
+    % Lock layout with global limits
+    axis equal;
+    xlim(xLims);
+    ylim(yLims);
+    set(gca, 'YDir', 'reverse', 'FontSize', 12);
+    
+    colormap('parula');
+    cb = colorbar;
+    clim(cLims); % Forces colorbar tick widths to remain completely static
+    ylabel(cb, plotTitleVar, 'FontSize', 12);
+    
+    % Export
+    drawnow;
+    imgName = fullfile(outDir, sprintf('frame_%04d.%s', k, opts.imgFormat));
+    exportgraphics(fig, imgName, 'Resolution', 300);
 end
