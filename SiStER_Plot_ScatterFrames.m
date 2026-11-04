@@ -3,9 +3,9 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
 %
 % Usage:
 %   SiStER_Plot_ScatterFrames('Wedge_default') % Will prompt for variable
+%   SiStER_Plot_ScatterFrames('Wedge_default', 'all') % Plots all 9 variables
+%   SiStER_Plot_ScatterFrames('Wedge_default', 10)    % Plots all 9 variables
 %   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'markerSize', 15, 'figWidth', 1200)
-%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'useParallel', true) 
-%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'colormap', 'turbo', 'bgColor', 'k') 
 
     % 1. Enforce required directory input
     if nargin < 1 || isempty(targetDir)
@@ -30,8 +30,9 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
         fprintf('  7) sxxm   - Normal Deviatoric Stress (Pa)\n');
         fprintf('  8) sxym   - Shear Deviatoric Stress (Pa)\n');
         fprintf('  9) idm    - Unique marker ID numbers\n');
+        fprintf(' 10) all    - Plot all 9 standard variables\n');
         
-        zVar = input('\nEnter a number (1-9) OR type an exact variable name: ', 's');
+        zVar = input('\nEnter a number (1-10), an exact variable name, or "all": ', 's');
     end
     
     switch strtrim(zVar)
@@ -44,8 +45,35 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
         case '7', zVar = 'sxxm';
         case '8', zVar = 'sxym';
         case '9', zVar = 'idm';
-        otherwise, zVar = strtrim(zVar); 
+        case '10', zVar = 'all';
+        otherwise
+            zVar = strtrim(zVar); 
+            validVars = {'epsIIm', 'etam', 'Tm', 'rhom', 'im', 'ep', 'sxxm', 'sxym', 'idm', 'all'};
+            % Validate that the input is actually a recognized variable
+            if ~any(strcmpi(zVar, validVars))
+                error('Invalid variable requested: "%s". Must be a valid variable name or number (1-10).', zVar);
+            end
+            % Ensure exact casing for consistency (e.g., if user typed 'tm', convert to 'Tm')
+            matchIdx = find(strcmpi(zVar, validVars));
+            zVar = validVars{matchIdx};
     end
+    
+    % === BATCH PROCESSING LOGIC FOR "ALL" ===
+    if strcmp(zVar, 'all')
+        allVars = {'epsIIm', 'etam', 'Tm', 'rhom', 'im', 'ep', 'sxxm', 'sxym', 'idm'};
+        fprintf('\n======================================================\n');
+        fprintf('Batch plotting ALL 9 variables in: %s\n', targetDir);
+        fprintf('======================================================\n');
+        
+        for v = 1:length(allVars)
+            fprintf('\n>>> Plotting variable %d/9: %s <<<\n', v, allVars{v});
+            % Recursively call this function for each variable, passing all extra arguments
+            SiStER_Plot_ScatterFrames(targetDir, allVars{v}, varargin{:});
+        end
+        fprintf('\n=== Finished batch plotting all variables ===\n');
+        return; % Exit to prevent running the single-plot logic below
+    end
+    % ==============================================
     
     % 3. Parse optional arguments
     p = inputParser;
@@ -60,8 +88,8 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     addParameter(p, 'imgFormat', 'png', @ischar); 
     addParameter(p, 'showFigure', false, @islogical); 
     addParameter(p, 'useParallel', true, @islogical); 
-    addParameter(p, 'colormap', 'parula'); % Can be string (e.g. 'turbo') or custom matrix
-    addParameter(p, 'bgColor', 'w');       % Can be 'w', 'k', or RGB triplet [1 1 1]
+    addParameter(p, 'colormap', 'parula'); 
+    addParameter(p, 'bgColor', 'w');       
     % ---------------------------------------
     
     parse(p, varargin{:});
@@ -133,23 +161,38 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     else
         cLims = [zMin, zMax];
     end
+    
+    % --- NEW: Fix for uniform variables or flat spatial dimensions ---
+    if cLims(1) >= cLims(2)
+        if cLims(1) == 0, cLims = [-0.1, 0.1]; 
+        else, cLims = [cLims(1) - abs(cLims(1))*0.01, cLims(1) + abs(cLims(1))*0.01]; end
+    end
+    
+    if xLims(1) >= xLims(2)
+        if xLims(1) == 0, xLims = [-0.1, 0.1]; 
+        else, xLims = [xLims(1) - abs(xLims(1))*0.01, xLims(1) + abs(xLims(1))*0.01]; end
+    end
+    
+    if yLims(1) >= yLims(2)
+        if yLims(1) == 0, yLims = [-0.1, 0.1]; 
+        else, yLims = [yLims(1) - abs(yLims(1))*0.01, yLims(1) + abs(yLims(1))*0.01]; end
+    end
+    % -----------------------------------------------------------------
+    
     fprintf('Global limits locked. Plotting...\n');
-
+    
     % 7. PLOTTING LOOP (Parallel vs Sequential)
     if opts.useParallel
         parfor k = 1:numFiles
             fileName = matFiles(k).name;
             fullPath = fullfile(targetDir, fileName);
             
-            % Create figure using specified background color
             fig = figure('Visible', 'off', 'Position', [100, 100, opts.figWidth, opts.figHeight], 'Color', opts.bgColor);
-            
             processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitleVar, xLims, yLims, cLims, outDir, k);
             close(fig);
         end
     else
         if opts.showFigure, vis = 'on'; else, vis = 'off'; end
-        % Create figure using specified background color
         fig = figure('Visible', vis, 'Position', [100, 100, opts.figWidth, opts.figHeight], 'Color', opts.bgColor);
         
         for k = 1:numFiles
@@ -193,7 +236,7 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
     cla;
     fastscatter(X, Y, Z, 'markersize', opts.markerSize);
     
-    % Text color handling (if black background is chosen, make text white)
+    % Text color handling 
     if isequal(opts.bgColor, 'k') || isequal(opts.bgColor, [0 0 0]) || isequal(opts.bgColor, 'black')
         txtColor = 'w';
     else
@@ -210,19 +253,19 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
     xlabel([strrep(opts.xVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
     ylabel([strrep(opts.yVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
     
-    % Lock layout with global limits and set axes color
+    % Lock layout
     axis equal;
     xlim(xLims);
     ylim(yLims);
     set(gca, 'YDir', 'reverse', 'FontSize', 12, 'Color', opts.bgColor, 'XColor', txtColor, 'YColor', txtColor);
     
-    % Apply custom colormap
+    % Apply colormap
     colormap(opts.colormap);
     cb = colorbar('Color', txtColor);
     clim(cLims); 
     ylabel(cb, plotTitleVar, 'FontSize', 12, 'Color', txtColor);
     
-    % Export (passing BackgroundColor ensures exportgraphics doesn't default to white)
+    % Export
     drawnow;
     imgName = fullfile(outDir, sprintf('frame_%04d.%s', k, opts.imgFormat));
     exportgraphics(fig, imgName, 'Resolution', 300, 'BackgroundColor', opts.bgColor);
