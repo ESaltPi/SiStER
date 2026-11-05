@@ -95,6 +95,8 @@ disp('FIN')
 SiStER_MoveFiles2Folder('OTF1')
 
 SiStER_Plot_ScatterFrames('OTF1', 'im', 'filterAir', false)
+% what happens when i enter: SiStER_Plot_ScatterFrames('OTF1', 'filterAir',
+% false) --- it shouldnt fail
 %% testing plotting
 return 
 
