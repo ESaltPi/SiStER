@@ -92,6 +92,8 @@ disp('FIN')
 
 
 %% testing plotting
+return 
+
 
 figure(1)
 fastscatter(xm(im>1)/1e3,ym(im>1) /1e3,log10(epsIIm(im>1)),'markersize',2);

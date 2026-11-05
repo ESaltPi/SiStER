@@ -31,7 +31,7 @@ Mquad_crit=4; % minimum number of markers allowed in smallest quadrant (for rese
 
 % GEOMETRY %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-Nphase=4; % number of phases
+Nphase=3; % number of phases
 
 % Phase 1: Sticky Water Layer
 GEOM(1).type=1; % 1 = layer (then specify top and bot) or 2 = circle % 1 = layer (then specify top and bot) or 2 = circle (then specify center and radius)
