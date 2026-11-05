@@ -42,6 +42,8 @@ codegen/
 #MATLAB junk
 resources/
 *.prj
+*.asv
+*.mat
 
 #Folders
 Sister_run_check_default/

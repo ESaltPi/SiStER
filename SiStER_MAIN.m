@@ -91,6 +91,10 @@ end
 disp('FIN')
 
 
+%% Move files
+SiStER_MoveFiles2Folder('OTF1')
+
+SiStER_Plot_ScatterFrames('OTF1', 'im', 'filterAir', false)
 %% testing plotting
 return 
 
@@ -111,7 +115,7 @@ set(gca,'YDir','reverse')
 % Sister resume: SiStER_RESUME.m
 % auto send outputs to a folder: SiStER_MoveFiles2Folder.m
 % Auto plot outputs SiStER_Plot_ScatterFrames.m
-
+return
 % Resume cancelled operation:
 SiStER_RESUME.m
 
@@ -120,3 +124,6 @@ SiStER_MoveFiles2Folder.m
 
 % Plot each timestep, save as jpg/png/pdf
 SiStER_Plot_ScatterFrames.m
+
+%Make video from frames:
+SiStER_FramesToVideo.m

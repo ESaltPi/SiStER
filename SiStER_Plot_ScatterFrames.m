@@ -260,9 +260,27 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
     set(gca, 'YDir', 'reverse', 'FontSize', 12, 'Color', opts.bgColor, 'XColor', txtColor, 'YColor', txtColor);
     
     % Apply colormap
-    colormap(opts.colormap);
-    cb = colorbar('Color', txtColor);
-    clim(cLims); 
+    % Apply colormap & handle discrete phase plotting (im)
+    if strcmp(zVar, 'im')
+        % Determine unique phases present or set range based on limits
+        minP = round(cLims(1));
+        maxP = round(cLims(2));
+        numP = max(1, maxP - minP + 1);
+        
+        % Generate discrete color map with exactly numP colors
+        baseCmap = feval(opts.colormap, numP);
+        colormap(gca, baseCmap);
+        
+        % Lock color limits to half-integer boundaries so values sit in color centers
+        clim([minP - 0.5, maxP + 0.5]);
+        
+        cb = colorbar('Color', txtColor);
+        cb.Ticks = minP:maxP; % Tick mark on integer phase IDs
+    else
+        colormap(opts.colormap);
+        cb = colorbar('Color', txtColor);
+        clim(cLims);
+    end
     ylabel(cb, plotTitleVar, 'FontSize', 12, 'Color', txtColor);
     
     % Export
