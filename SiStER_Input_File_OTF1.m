@@ -6,8 +6,8 @@ Nt=100; % max number of time iterations
 dt_out=10; % output files every "dt_out" iterations
 
 %Testing/initialization
-%Nt=2; % max number of time iterations
-%dt_out=1; % output files every "dt_out" iterations
+Nt=2; % max number of time iterations
+dt_out=1; % output files every "dt_out" iterations
 
 
 % DOMAIN SIZE AND GRIDDING %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

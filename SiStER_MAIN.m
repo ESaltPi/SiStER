@@ -14,9 +14,10 @@ close all
 % INITIALIZATION
 
 % Input File: loads parameter values, model geometry, boundary conditions
-if exist('running_from_SiStER_RUN','var')==0
+if exist('running_from_SiStER_RUN','var') == 0
     clear 
-    InpFil = input('Input file ? ','s');
+    % Call SiStER_Input with Tab completion and menu auto-list support
+    InpFil = SiStER_Input(input('Input file (or press Enter to list): ', 's'));
 end
 run(InpFil)
 
@@ -129,3 +130,6 @@ SiStER_Plot_ScatterFrames.m
 
 %Make video from frames:
 SiStER_FramesToVideo.m
+
+%Better sister file input
+SiStER_Input.m
