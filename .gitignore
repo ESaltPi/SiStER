@@ -28,6 +28,7 @@ codegen/
 
 # Cache files
 *.slxc
+desktop.ini
 
 # Cloud based storage dotfile
 .MATLABDriveTag

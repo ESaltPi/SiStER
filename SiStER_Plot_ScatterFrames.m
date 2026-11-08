@@ -16,9 +16,17 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     end
     
     % 2. Handle zVar input or Interactive prompt
+    % Check if 2nd input is actually a key-value parameter pair (e.g., 'filterAir', false)
+    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','colormap','bgColor','logZ'})
+        % Shift varargin so the key-value pair isn't lost, then clear zVar to trigger prompt
+        varargin = [{zVar}, varargin];
+        zVar = [];
+    end
+
     if nargin >= 2 && isnumeric(zVar)
         zVar = num2str(zVar);
     end
+    
     if nargin < 2 || isempty(zVar)
         fprintf('\n--- Available Marker Variables ---\n');
         fprintf('  1) epsIIm - 2nd invariant of strain rate (1/s)\n');
