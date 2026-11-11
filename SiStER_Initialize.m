@@ -51,9 +51,28 @@ if (exist('dt_m','var')==0);
 end
 
 % initialize marker chain to track base of layer 1 (sticky layer)
-Ntopo=PARAMS.Ntopo_markers;
-topo_x=linspace(0,xsize,Ntopo);
-topo_y=GEOM(1).bot*ones(size(topo_x));
-topo_marker_spacing=mean(diff(topo_x)); % initial mean spacing of topography markers
+Ntopo = PARAMS.Ntopo_markers;
+topo_x = linspace(0, xsize, Ntopo);
 
+if isfield(PARAMS, 'custom_topo_y')
+    topo_y = PARAMS.custom_topo_y;
+else
+    topo_y = GEOM(1).bot * ones(size(topo_x));
+end
 
+topo_marker_spacing = mean(diff(topo_x));
+
+% CUSTOM MARKER PHASE OVERRIDE (Rectangular Box + Constant Moho Depth at 8 km)
+if isfield(PARAMS, 'x_data') && isfield(PARAMS, 'y_data')
+    y_seafloor_at_xm = interp1(PARAMS.x_data, PARAMS.y_data, xm, 'linear', 'extrap');
+    
+    % Phase 1 (Sticky Water): Surface (0 km) down to bathymetry seafloor
+    im(ym <= y_seafloor_at_xm) = 1;
+    
+    % Phase 2 (Oceanic Crust): Seafloor down to fixed Moho depth of 8 km
+    % (Crust is 4 km thick along the flanks, narrowing to 2 km thick under the box divot)
+    im(ym > y_seafloor_at_xm & ym <= 8e3) = 2;
+    
+    % Phase 3 (Lithospheric Mantle): Everything below 8 km depth down to bottom
+    im(ym > 8e3) = 3;
+end
