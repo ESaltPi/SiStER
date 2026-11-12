@@ -2,7 +2,7 @@
 % Vertical Cross-Section with Static Bathymetry, Flexible Moho, and Fixed Timestep
 
 % DURATION OF SIMULATION AND FREQUENCY OF OUTPUT %%%%%%%%%%%%%%%%%%%%%%%%%%
-Nt = 10;             % number of time iterations
+Nt = 20;             % number of time iterations
 dt_out = 1;          % save output every iteration
 
 % DOMAIN SIZE AND GRIDDING %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

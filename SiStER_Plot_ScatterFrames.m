@@ -251,9 +251,23 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
         txtColor = 'k';
     end
     
+    %Handle time in title
     if isfield(data, 'time')
-        timeMyrs = data.time / (365.25 * 24 * 3600 * 1e6);
-        title(sprintf('%s | Time: %.3f Myrs (File: %s)', plotTitleVar, timeMyrs, fileName), 'FontSize', 14, 'Color', txtColor);
+        secPerYr = 365.25 * 24 * 3600;
+        timeYrs = data.time / secPerYr;
+        
+        if timeYrs < 1e3
+            % Display in years if under 1 kyr (e.g., t=1 initialization step)
+            title(sprintf('%s | Time: %.2f yrs (File: %s)', plotTitleVar, timeYrs, fileName), 'FontSize', 14, 'Color', txtColor);
+        elseif timeYrs < 1e5
+            % Display in kyrs with 4 decimal places when under 100 kyrs
+            timeKyrs = timeYrs / 1e3;
+            title(sprintf('%s | Time: %.4f kyrs (File: %s)', plotTitleVar, timeKyrs, fileName), 'FontSize', 14, 'Color', txtColor);
+        else
+            % Display in Myrs with 4 decimal places for longer runs
+            timeMyrs = timeYrs / 1e6;
+            title(sprintf('%s | Time: %.4f Myrs (File: %s)', plotTitleVar, timeMyrs, fileName), 'FontSize', 14, 'Color', txtColor);
+        end
     else
         title(sprintf('%s | File: %s', plotTitleVar, fileName), 'FontSize', 14, 'Color', txtColor);
     end

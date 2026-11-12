@@ -8,20 +8,82 @@ close all
 % 1. INITIALIZE GRID AND PARAMETERS
 if exist('running_from_SiStER_RUN','var')==0
     clear 
-    InpFil = input('Input file ? ','s');
+    % Call SiStER_Input with menu auto-list and validation support
+    InpFil = SiStER_Input(input('Input file (or press Enter to list): ', 's'));
 end
 run(InpFil)
 SiStER_Initialize % Sets up PARAMS, dx, dy, Nt, and fresh arrays
 
 % 2. OVERWRITE WITH SAVED STATE
-RestartInput = input('Enter the .mat file to resume from (e.g., ''80'' or ''80.mat''): ', 's');
+clear RestartFile
+RestartInput = strtrim(input('Enter the .mat file to resume from (or press Enter to list): ', 's'));
 
-% Check if the input ends with '.mat'
-if ~endsWith(RestartInput, '.mat')
-    RestartFile = [RestartInput, '.mat'];
-else
+if isempty(RestartInput)
+    allMats = dir('**/*.mat');
+    if isempty(allMats)
+        error('No .mat checkpoint files found.');
+    end
+    
+    % Filter .mat files that match the chosen InpFil (via saved InpFil or grid/BC signature)
+    matched = false(size(allMats));
+    for k = 1:length(allMats)
+        fPath = fullfile(allMats(k).folder, allMats(k).name);
+        info = whos('-file', fPath);
+        varNames = {info.name};
+        
+        if ismember('InpFil', varNames)
+            m = matfile(fPath);
+            matched(k) = strcmp(m.InpFil, InpFil);
+        elseif ismember('X', varNames) && ismember('BC', varNames)
+            xInfo = info(strcmp(varNames, 'X'));
+            if isequal(xInfo.size, [Ny, Nx])
+                m = matfile(fPath);
+                matched(k) = isequal(m.BC, BC);
+            end
+        end
+    end
+    
+    % Use filtered list if any matched; otherwise show all .mat files
+    if any(matched)
+        matFiles = allMats(matched);
+    else
+        matFiles = allMats;
+    end
+    
+    % Sort by folder name, then numerically by iteration number (1, 2, ..., 10)
+    folders = {matFiles.folder};
+    nums = arrayfun(@(f) str2double(erase(f.name, '.mat')), matFiles);
+    [~, sortIdx] = sortrows([folders(:), num2cell(nums(:))]);
+    matFiles = matFiles(sortIdx);
+    
+    fprintf('\nMatching Checkpoint Files:\n');
+    for k = 1:length(matFiles)
+        relPath = erase(fullfile(matFiles(k).folder, matFiles(k).name), [pwd filesep]);
+        fprintf('  [%d] %s\n', k, relPath);
+    end
+    fprintf('\n');
+    
+    choice = strtrim(input('Select file number or type path/filename: ', 's'));
+    numChoice = str2double(choice);
+    if ~isnan(numChoice) && floor(numChoice) == numChoice && numChoice >= 1 && numChoice <= length(matFiles)
+        RestartFile = fullfile(matFiles(numChoice).folder, matFiles(numChoice).name);
+    else
+        RestartInput = choice;
+    end
+end
+
+if ~exist('RestartFile', 'var') || isempty(RestartFile)
+    if isempty(RestartInput)
+        error('No checkpoint file selected.');
+    end
+    if ~endsWith(RestartInput, '.mat')
+        RestartInput = [RestartInput, '.mat'];
+    end
     RestartFile = RestartInput;
 end
+
+% Remember which folder the checkpoint came from so new outputs go back there
+[resumeFolder, ~, ~] = fileparts(RestartFile);
 load(RestartFile); % Overwrites time, xm, ym, ep, etam, etc. with saved state
 
 % Extract current time step from filename to start loop correctly
@@ -34,7 +96,8 @@ t_start = str2double(name);
 % --- RECONSTRUCT UNSAVED STATE VARIABLES FOR CONTINUATION ---
 % The .mat file saves 'etam' but the bisection solver requires 'etas' 
 % and 'etas_new' (shear node viscosity) leftover from the previous step.
-etas = SiStER_interp_markers_to_shear_nodes(xm,ym,icn,jcn,qd,x,y,etam);
+tmp_etas = SiStER_interp_markers_to_shear_nodes(xm,ym,icn,jcn,qd,x,y,etam);
+etas = tmp_etas(1).data;
 etas_new = etas;
 % ------------------------------------------------------------
 
@@ -68,7 +131,7 @@ for t = (t_start + 1):Nt
         disp('SAVING SELECTED VARIABLES TO OUTPUT FILE') 
         filename=num2str(t);
         [etam]=SiStER_interp_shear_nodes_to_markers(etas,x,y,xm,ym,icn,jcn); 
-        save(filename,'X','Y','vx','vy','p','time','xm','ym','etam','rhom','BC','etan','Tm','im','idm','epsIIm','sxxm','sxym','ep','epNH','icn','jcn','qd','topo_x','topo_y')
+        save(filename,'X','Y','vx','vy','p','time','xm','ym','etam','rhom','BC','etan','Tm','im','idm','epsIIm','sxxm','sxym','ep','epNH','icn','jcn','qd','topo_x','topo_y','InpFil')
     end
     
     % SET ADVECTION TIME STEP BASED ON CURRENT FLOW SOLUTION
@@ -94,4 +157,10 @@ for t = (t_start + 1):Nt
     disp('--------------------------------')
     
 end
+
+% Move newly saved .mat outputs back into the resumed run's folder
+if ~isempty(resumeFolder)
+    SiStER_MoveFiles2Folder(resumeFolder);
+end
+
 disp('FIN')
