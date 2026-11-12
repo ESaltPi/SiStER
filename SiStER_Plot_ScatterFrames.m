@@ -17,7 +17,7 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     
     % 2. Handle zVar input or Interactive prompt
     % Check if 2nd input is actually a key-value parameter pair (e.g., 'filterAir', false)
-    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','colormap','bgColor','logZ'})
+    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','closePool','colormap','bgColor','logZ'})
         % Shift varargin so the key-value pair isn't lost, then clear zVar to trigger prompt
         varargin = [{zVar}, varargin];
         zVar = [];
@@ -68,6 +68,17 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     
     % === BATCH PROCESSING LOGIC FOR "ALL" ===
     if strcmp(zVar, 'all')
+        % Parse useParallel and closePool upfront so we manage the pool once across all 9 variables
+        pBatch = inputParser;
+        pBatch.KeepUnmatched = true;
+        addParameter(pBatch, 'useParallel', true, @islogical);
+        addParameter(pBatch, 'closePool', true, @islogical);
+        parse(pBatch, varargin{:});
+        
+        if pBatch.Results.useParallel && pBatch.Results.closePool
+            batchPoolCleanup = onCleanup(@() delete(gcp('nocreate')));
+        end
+        
         allVars = {'epsIIm', 'etam', 'Tm', 'rhom', 'im', 'ep', 'sxxm', 'sxym', 'idm'};
         fprintf('\n======================================================\n');
         fprintf('Batch plotting ALL 9 variables in: %s\n', targetDir);
@@ -75,11 +86,11 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
         
         for v = 1:length(allVars)
             fprintf('\n>>> Plotting variable %d/9: %s <<<\n', v, allVars{v});
-            % Recursively call this function for each variable, passing all extra arguments
-            SiStER_Plot_ScatterFrames(targetDir, allVars{v}, varargin{:});
+            % Recursively call this function for each variable, keeping pool open until batch completes
+            SiStER_Plot_ScatterFrames(targetDir, allVars{v}, varargin{:}, 'closePool', false);
         end
         fprintf('\n=== Finished batch plotting all variables ===\n');
-        return; % Exit to prevent running the single-plot logic below
+        return; % Exit to prevent running the single-plot logic below (triggers batchPoolCleanup)
     end
     % ==============================================
     
@@ -96,6 +107,7 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     addParameter(p, 'imgFormat', 'png', @ischar); 
     addParameter(p, 'showFigure', false, @islogical); 
     addParameter(p, 'useParallel', true, @islogical); 
+    addParameter(p, 'closePool', true, @islogical);   % Auto-close parpool when top-level call finishes
     addParameter(p, 'colormap', 'parula'); 
     addParameter(p, 'bgColor', 'w');       
     % ---------------------------------------
@@ -191,6 +203,9 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     
     % 7. PLOTTING LOOP (Parallel vs Sequential)
     if opts.useParallel
+        if opts.closePool
+            poolCleanup = onCleanup(@() delete(gcp('nocreate')));
+        end
         parfor k = 1:numFiles
             fileName = matFiles(k).name;
             fullPath = fullfile(targetDir, fileName);
@@ -281,7 +296,6 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
     ylim(yLims);
     set(gca, 'YDir', 'reverse', 'FontSize', 12, 'Color', opts.bgColor, 'XColor', txtColor, 'YColor', txtColor);
     
-    % Apply colormap
     % Apply colormap & handle discrete phase plotting (im)
     if strcmp(zVar, 'im')
         % Determine unique phases present or set range based on limits
