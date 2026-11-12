@@ -62,17 +62,17 @@ end
 
 topo_marker_spacing = mean(diff(topo_x));
 
-% CUSTOM MARKER PHASE OVERRIDE (Rectangular Box + Constant Moho Depth at 8 km)
+% CUSTOM MARKER PHASE OVERRIDE (Flexible Bathymetry + Flexible Moho Depth)
 if isfield(PARAMS, 'x_data') && isfield(PARAMS, 'y_data')
     y_seafloor_at_xm = interp1(PARAMS.x_data, PARAMS.y_data, xm, 'linear', 'extrap');
     
-    % Phase 1 (Sticky Water): Surface (0 km) down to bathymetry seafloor
+    if isfield(PARAMS, 'moho_depth')
+        moho_y = PARAMS.moho_depth;
+    else
+        moho_y = GEOM(2).bot;
+    end
+    
     im(ym <= y_seafloor_at_xm) = 1;
-    
-    % Phase 2 (Oceanic Crust): Seafloor down to fixed Moho depth of 8 km
-    % (Crust is 4 km thick along the flanks, narrowing to 2 km thick under the box divot)
-    im(ym > y_seafloor_at_xm & ym <= 8e3) = 2;
-    
-    % Phase 3 (Lithospheric Mantle): Everything below 8 km depth down to bottom
-    im(ym > 8e3) = 3;
+    im(ym > y_seafloor_at_xm & ym <= moho_y) = 2;
+    im(ym > moho_y) = 3;
 end

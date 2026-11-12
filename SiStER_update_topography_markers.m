@@ -1,5 +1,13 @@
 % SiStER_update_topography_markers
 
+if isfield(PARAMS, 'FixTopography') && PARAMS.FixTopography == 1
+    % Keep topography strictly fixed: enforce phase boundary without advection or diffusion
+    topomarkers = interp1(topo_x, topo_y, xm, 'linear', 'extrap');
+    im(im == 1 & ym >= topomarkers) = 2;
+    im(im >= 2 & ym < topomarkers) = 1;
+    return
+end
+
 % advect the marker chain that keeps track of topography 
 % in the current flow field
 [topo_x,topo_y] = SiStER_advect_markers(x,y,topo_x,topo_y,dx,dy,dt_m,vx,vy);
@@ -45,3 +53,5 @@ if max(diff(topo_x))>5*topo_marker_spacing || issorted(topo_x)==0
     topo_y=topo_yREGRID;
     disp('**REGRIDDING TOPOGRAPHY MARKERS**')
 end
+
+

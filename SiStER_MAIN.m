@@ -93,9 +93,9 @@ disp('FIN')
 
 
 %% Move files
-SiStER_MoveFiles2Folder('OTF3')
+SiStER_MoveFiles2Folder('OTF4')
 
-SiStER_Plot_ScatterFrames('OTF3', 'im', 'filterAir', false)
+SiStER_Plot_ScatterFrames('OTF4', 'im', 'filterAir', false)
 
 %% testing plotting
 return 
