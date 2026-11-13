@@ -6,6 +6,10 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
 %   SiStER_Plot_ScatterFrames('Wedge_default', 'all') % Plots all 9 variables
 %   SiStER_Plot_ScatterFrames('Wedge_default', 10)    % Plots all 9 variables
 %   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'markerSize', 15, 'figWidth', 1200)
+%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'zoomx', [35 65], 'zoomy', [0 15], 'grid', true)
+
+% Turn off warning
+warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
 
     % 1. Enforce required directory input
     if nargin < 1 || isempty(targetDir)
@@ -17,7 +21,7 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     
     % 2. Handle zVar input or Interactive prompt
     % Check if 2nd input is actually a key-value parameter pair (e.g., 'filterAir', false)
-    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','closePool','colormap','bgColor','logZ'})
+    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','closePool','colormap','bgColor','logZ','zoomx','zoomy','grid'})
         % Shift varargin so the key-value pair isn't lost, then clear zVar to trigger prompt
         varargin = [{zVar}, varargin];
         zVar = [];
@@ -109,7 +113,10 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     addParameter(p, 'useParallel', true, @islogical); 
     addParameter(p, 'closePool', true, @islogical);   % Auto-close parpool when top-level call finishes
     addParameter(p, 'colormap', 'parula'); 
-    addParameter(p, 'bgColor', 'w');       
+    addParameter(p, 'bgColor', 'w');
+    addParameter(p, 'zoomx', [], @(x) isempty(x) || (isnumeric(x) && numel(x) == 2 && x(1) < x(2)));
+    addParameter(p, 'zoomy', [], @(x) isempty(x) || (isnumeric(x) && numel(x) == 2 && x(1) < x(2)));
+    addParameter(p, 'grid', false, @islogical);
     % ---------------------------------------
     
     parse(p, varargin{:});
@@ -140,8 +147,19 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     matFiles = matFiles(sortIdx);
     numFiles = length(matFiles);
     
-    % 5. Create the output image directory
-    outDir = fullfile(targetDir, sprintf('%s_plots', zVar));
+    % 5. Create the output image directory (append zoom suffix to prevent overwriting)
+    folderName = sprintf('%s_plots', zVar);
+    if ~isempty(opts.zoomx) || ~isempty(opts.zoomy)
+        folderName = [folderName '_zoom'];
+        if ~isempty(opts.zoomx)
+            folderName = sprintf('%s_x%gto%g', folderName, opts.zoomx(1), opts.zoomx(2));
+        end
+        if ~isempty(opts.zoomy)
+            folderName = sprintf('%s_y%gto%g', folderName, opts.zoomy(1), opts.zoomy(2));
+        end
+    end
+    
+    outDir = fullfile(targetDir, folderName);
     if ~isfolder(outDir)
         mkdir(outDir);
     end
@@ -149,8 +167,8 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
     
     varsToLoad = unique({opts.xVar, opts.yVar, zVar, 'time', 'im'}); 
     
-    % 6. PRE-SCAN: Find Global Min/Max to lock dimensions perfectly
-    fprintf('Scanning %d files for global limits...\n', numFiles);
+    % 6. PRE-SCAN: Find Global (or Visible Zoomed) Min/Max to lock limits
+    fprintf('Scanning %d files for limits...\n', numFiles);
     xMin = inf; xMax = -inf; yMin = inf; yMax = -inf; zMin = inf; zMax = -inf;
     
     for k = 1:numFiles
@@ -161,10 +179,20 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
         if strcmp(opts.xVar, 'xm'), X = X / 1e3; end
         if strcmp(opts.yVar, 'ym'), Y = Y / 1e3; end
         
+        mask = true(size(X));
         if opts.filterAir && isfield(data, 'im')
-            mask = data.im > 1;
-            X = X(mask); Y = Y(mask); Z = Z(mask);
+            mask = mask & (data.im > 1);
         end
+        
+        % Restrict Z scan to only markers visible inside zoomx / zoomy
+        if ~isempty(opts.zoomx)
+            mask = mask & (X >= opts.zoomx(1)) & (X <= opts.zoomx(2));
+        end
+        if ~isempty(opts.zoomy)
+            mask = mask & (Y >= opts.zoomy(1)) & (Y <= opts.zoomy(2));
+        end
+        
+        X = X(mask); Y = Y(mask); Z = Z(mask);
         if opts.logZ, Z = log10(Z); end
         
         if isempty(X), continue; end
@@ -174,15 +202,25 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
         zMin = min(zMin, min(Z(:))); zMax = max(zMax, max(Z(:)));
     end
     
-    xLims = [xMin, xMax];
-    yLims = [yMin, yMax];
+    if ~isempty(opts.zoomx)
+        xLims = opts.zoomx;
+    else
+        xLims = [xMin, xMax];
+    end
+    
+    if ~isempty(opts.zoomy)
+        yLims = opts.zoomy;
+    else
+        yLims = [yMin, yMax];
+    end
+    
     if ~isempty(opts.cLimit)
         cLims = opts.cLimit; 
     else
         cLims = [zMin, zMax];
     end
     
-    % --- NEW: Fix for uniform variables or flat spatial dimensions ---
+    % --- Fix for uniform variables or flat spatial dimensions ---
     if cLims(1) >= cLims(2)
         if cLims(1) == 0, cLims = [-0.1, 0.1]; 
         else, cLims = [cLims(1) - abs(cLims(1))*0.01, cLims(1) + abs(cLims(1))*0.01]; end
@@ -197,9 +235,10 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
         if yLims(1) == 0, yLims = [-0.1, 0.1]; 
         else, yLims = [yLims(1) - abs(yLims(1))*0.01, yLims(1) + abs(yLims(1))*0.01]; end
     end
-    % -----------------------------------------------------------------
+    % ------------------------------------------------------------
     
-    fprintf('Global limits locked. Plotting...\n');
+    fprintf('Limits locked (X: [%.2f, %.2f] km, Y: [%.2f, %.2f] km). Plotting...\n', ...
+            xLims(1), xLims(2), yLims(1), yLims(2));
     
     % 7. PLOTTING LOOP (Parallel vs Sequential)
     if opts.useParallel
@@ -248,16 +287,24 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
     if strcmp(opts.xVar, 'xm'), X = X / 1e3; end
     if strcmp(opts.yVar, 'ym'), Y = Y / 1e3; end
     
+    mask = true(size(X));
     if opts.filterAir && isfield(data, 'im')
-        mask = data.im > 1;
-        X = X(mask); Y = Y(mask); Z = Z(mask);
+        mask = mask & (data.im > 1);
     end
+    
+    % Filter out markers outside the plot limits (small buffer so edge dots clip cleanly rather than vanishing early)
+    xPad = 0.02 * (xLims(2) - xLims(1));
+    yPad = 0.02 * (yLims(2) - yLims(1));
+    mask = mask & (X >= xLims(1) - xPad) & (X <= xLims(2) + xPad) & ...
+                  (Y >= yLims(1) - yPad) & (Y <= yLims(2) + yPad);
+    
+    X = X(mask); Y = Y(mask); Z = Z(mask);
     if opts.logZ, Z = log10(Z); end
     
-    % Draw Frame
+    % Draw Frame using built-in scatter so ClippingStyle='rectangle' slices edge dots cleanly
     figure(fig);
     cla;
-    fastscatter(X, Y, Z, 'markersize', opts.markerSize);
+    scatter(X, Y, opts.markerSize, Z, 'filled');
     
     % Text color handling 
     if isequal(opts.bgColor, 'k') || isequal(opts.bgColor, [0 0 0]) || isequal(opts.bgColor, 'black')
@@ -266,20 +313,17 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
         txtColor = 'k';
     end
     
-    %Handle time in title
+    % Handle time in title
     if isfield(data, 'time')
         secPerYr = 365.25 * 24 * 3600;
         timeYrs = data.time / secPerYr;
         
         if timeYrs < 1e3
-            % Display in years if under 1 kyr (e.g., t=1 initialization step)
             title(sprintf('%s | Time: %.2f yrs (File: %s)', plotTitleVar, timeYrs, fileName), 'FontSize', 14, 'Color', txtColor);
         elseif timeYrs < 1e5
-            % Display in kyrs with 4 decimal places when under 100 kyrs
             timeKyrs = timeYrs / 1e3;
             title(sprintf('%s | Time: %.4f kyrs (File: %s)', plotTitleVar, timeKyrs, fileName), 'FontSize', 14, 'Color', txtColor);
         else
-            % Display in Myrs with 4 decimal places for longer runs
             timeMyrs = timeYrs / 1e6;
             title(sprintf('%s | Time: %.4f Myrs (File: %s)', plotTitleVar, timeMyrs, fileName), 'FontSize', 14, 'Color', txtColor);
         end
@@ -290,28 +334,34 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
     xlabel([strrep(opts.xVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
     ylabel([strrep(opts.yVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
     
-    % Lock layout
+    % Lock layout and strictly clip markers to the axes rectangle
     axis equal;
     xlim(xLims);
     ylim(yLims);
-    set(gca, 'YDir', 'reverse', 'FontSize', 12, 'Color', opts.bgColor, 'XColor', txtColor, 'YColor', txtColor);
+    box on;
+    set(gca, 'YDir', 'reverse', 'FontSize', 12, 'Color', opts.bgColor, ...
+        'XColor', txtColor, 'YColor', txtColor, ...
+        'Clipping', 'on', 'ClippingStyle', 'rectangle');
+    
+    if opts.grid
+        grid on;
+        set(gca, 'Layer', 'top');
+    else
+        grid off;
+    end
     
     % Apply colormap & handle discrete phase plotting (im)
     if strcmp(zVar, 'im')
-        % Determine unique phases present or set range based on limits
         minP = round(cLims(1));
         maxP = round(cLims(2));
         numP = max(1, maxP - minP + 1);
         
-        % Generate discrete color map with exactly numP colors
         baseCmap = feval(opts.colormap, numP);
         colormap(gca, baseCmap);
-        
-        % Lock color limits to half-integer boundaries so values sit in color centers
         clim([minP - 0.5, maxP + 0.5]);
         
         cb = colorbar('Color', txtColor);
-        cb.Ticks = minP:maxP; % Tick mark on integer phase IDs
+        cb.Ticks = minP:maxP;
     else
         colormap(opts.colormap);
         cb = colorbar('Color', txtColor);

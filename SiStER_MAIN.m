@@ -94,9 +94,12 @@ disp('FIN')
 
 
 %% Move files
-SiStER_MoveFiles2Folder('OTF4')
+SiStER_MoveFiles2Folder('OTF5')
 
-SiStER_Plot_ScatterFrames('OTF4', 'im', 'filterAir', false)
+SiStER_Plot_ScatterFrames('OTF5', 'im', 'filterAir', false)
+%SiStER_Plot_ScatterFrames('OTF5', 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12])
+SiStER_Plot_ScatterFrames('OTF5', 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 35)
+
 
 %% testing plotting
 return 
