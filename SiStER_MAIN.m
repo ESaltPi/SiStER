@@ -94,11 +94,12 @@ disp('FIN')
 
 
 %% Move files
-SiStER_MoveFiles2Folder('OTF5')
+SiStER_MoveFiles2Folder('OTF6')
 
-SiStER_Plot_ScatterFrames('OTF5', 'im', 'filterAir', false)
-%SiStER_Plot_ScatterFrames('OTF5', 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12])
-SiStER_Plot_ScatterFrames('OTF5', 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 35)
+SiStER_Plot_ScatterFrames('OTF6', 'im', 'filterAir', false)
+%SiStER_Plot_ScatterFrames('OTF6', 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12])
+SiStER_Plot_ScatterFrames('OTF6', 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 10)
+SiStER_Plot_ScatterFrames('OTF6', 'sxxm', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 12)
 
 
 %% testing plotting

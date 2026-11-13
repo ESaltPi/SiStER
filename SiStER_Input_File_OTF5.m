@@ -11,11 +11,11 @@ ysize = 50e3;        % 50 km deep domain
 
 % Horizontal Gridding: Refined in the center near the fault/relief (40-60 km)
 GRID.dx(1) = 2000;   GRID.x(1) = 40e3;
-GRID.dx(2) = 100;    GRID.x(2) = 60e3;  % 500 m resolution across central zone
+GRID.dx(2) = 250;    GRID.x(2) = 60e3;  % 500 m resolution across central zone
 GRID.dx(3) = 2000;
 
 % Vertical Gridding: High resolution near top (0-15 km) for relief, crust & Moho
-GRID.dy(1) = 100;    GRID.y(1) = 15e3;  % 500 m resolution
+GRID.dy(1) = 250;    GRID.y(1) = 15e3;  % 500 m resolution
 GRID.dy(2) = 2000;
 
 % LAGRANGIAN MARKERS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
