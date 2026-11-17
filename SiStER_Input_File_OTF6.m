@@ -10,13 +10,14 @@ xsize = 100e3;       % 100 km wide domain
 ysize = 50e3;        % 50 km deep domain
 
 % Horizontal Gridding: Refined in the center near the fault/relief (40-60 km)
-GRID.dx(1) = 2000;   GRID.x(1) = 40e3;
-GRID.dx(2) = 250;    GRID.x(2) = 60e3;  % 500 m resolution across central zone
-GRID.dx(3) = 2000;
+GRID.dx(1) = 2000;   GRID.x(1) = 40e3;   % Coarse left far-field (0 to 40 km)
+GRID.dx(2) = 250;    GRID.x(2) = 60e3;   % 250 m resolution across central zone (40 to 60 km)
+GRID.dx(3) = 2000;                       % Coarse right far-field (60 to 100 km)
 
-% Vertical Gridding: High resolution near top (0-15 km) for relief, crust & Moho
-GRID.dy(1) = 250;    GRID.y(1) = 15e3;  % 500 m resolution
-GRID.dy(2) = 2000;
+% Vertical Gridding: High resolution from 3 to 15 km depth (relief, crust & Moho)
+GRID.dy(1) = 2000;   GRID.y(1) = 3e3;    % Coarse upper water layer (0 to 3 km) -> 2 exact cells of 1500 m
+GRID.dy(2) = 250;    GRID.y(2) = 15e3;   % 250 m resolution across seafloor & Moho (3 to 15 km) -> 48 cells
+GRID.dy(3) = 2000;                       % Coarse deep mantle (15 to 50 km) -> 14 exact cells of 2500 m
 
 % LAGRANGIAN MARKERS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Mquad = 8;           % markers in smallest quadrant
