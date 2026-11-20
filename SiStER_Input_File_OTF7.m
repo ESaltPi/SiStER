@@ -4,20 +4,22 @@
 quickPlot='OTF7';
 
 % DURATION OF SIMULATION AND FREQUENCY OF OUTPUT %%%%%%%%%%%%%%%%%%%%%%%%%%
-Nt = 15;             % number of time iterations
+Nt = 20;             % number of time iterations
 dt_out = 1;          % save output every iteration
 
 % DOMAIN SIZE AND GRIDDING %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 xsize = 100e3;       % 100 km wide domain
-ysize = 30e3;        % 50 km deep domain
+ysize = 50e3;        % 30 km deep domain
 
 % Horizontal Gridding: Refined in the center near the fault/relief (40-60 km)
 GRID.dx(1) = 2000;   GRID.x(1) = 40e3;   % Coarse left far-field (0 to 40 km)
-GRID.dx(2) = 250;    GRID.x(2) = 60e3;   % 250 m resolution across central zone (40 to 60 km)
-GRID.dx(3) = 2000;                       % Coarse right far-field (60 to 100 km)
+GRID.dx(2) = 250;    GRID.x(2) = 48e3;   % 250 m resolution across central zone (40 to 60 km)
+GRID.dx(3) = 100;    GRID.x(3) = 52e3;
+GRID.dx(4) = 250;    GRID.x(4) = 60e3;
+GRID.dx(5) = 2000;                       % Coarse right far-field (60 to 100 km)
 
 % Vertical Gridding: High resolution from 3 to 15 km depth (relief, crust & Moho)
-GRID.dy(1) = 2000;   GRID.y(1) = 2e3;    % Coarse upper water layer (0 to 3 km) -> 2 exact cells of 1500 m
+GRID.dy(1) = 500;   GRID.y(1) = 2e3;    % Coarse upper water layer (0 to 3 km) -> 2 exact cells of 1500 m
 GRID.dy(2) = 250;    GRID.y(2) = 16e3;   % 250 m resolution across seafloor & Moho (3 to 15 km) -> 48 cells
 GRID.dy(3) = 2000;                       % Coarse deep mantle (15 to 50 km) -> 14 exact cells of 2500 m
 
@@ -126,8 +128,11 @@ PARAMS.Tsolve = 1;       % yes (1) or no (0) solve for temperature
 % (make sure it matches the BCs)
 
 % Initial linear geotherm (0 deg C at top to 1000 deg C at bottom; water reset to 0 deg C)
-PARAMS.a0 = 0;
-PARAMS.a1 = 1000 / ysize;
+y_sf = 4e3;                % Reference seafloor depth (m)
+dTdz = 20e-3;              % Desired geothermal gradient (e.g., 20 deg C/km)
+
+PARAMS.a0 = -dTdz * y_sf;  % T = 0 deg C right at the 4 km seafloor
+PARAMS.a1 = dTdz;
 PARAMS.a2 = 0;
 PARAMS.a3 = 0;
 PARAMS.amp = 0;          % amplitude of sinusoidal perturbation
@@ -183,6 +188,6 @@ PARAMS.BalanceStickyLayer = 0;  % if set to 1, the code will reset the inflow
 % 1/ type? (1=Dirichlet, 2=Neumann)
 % 2/ value
 BCtherm.top   = [1 0];     % T = 0 deg C at top
-BCtherm.bot   = [1 1000];  % T = 1000 deg C at bottom
+BCtherm.bot   = [1, dTdz * (ysize - y_sf)];  % Matches geotherm at y = ysize
 BCtherm.left  = [2 0];     % Insulating side walls
 BCtherm.right = [2 0];
