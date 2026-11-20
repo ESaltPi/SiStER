@@ -159,3 +159,5 @@ BCtherm.top   = [1 0];     % T = 0 deg C at top
 BCtherm.bot   = [1 1000];  % T = 1000 deg C at bottom
 BCtherm.left  = [2 0];     % Insulating side walls
 BCtherm.right = [2 0];
+
+
