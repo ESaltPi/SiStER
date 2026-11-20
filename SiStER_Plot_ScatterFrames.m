@@ -5,9 +5,8 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
 %   SiStER_Plot_ScatterFrames('Wedge_default') % Will prompt for variable
 %   SiStER_Plot_ScatterFrames('Wedge_default', 'all') % Plots all 9 variables
 %   SiStER_Plot_ScatterFrames('Wedge_default', 10)    % Plots all 9 variables
-%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'markerSize', 15, 'figWidth', 1200)
-%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'zoomx', [35 65], 'zoomy', [0 15], 'grid', true)
-%   SiStER_Plot_ScatterFrames('OTF6', 'sxxm', 'plotTopo', true, 'topoColor', 'r', 'topoWidth', 2)
+%   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'markerSize', 15, 'dpi', 150)
+%   SiStER_Plot_ScatterFrames('OTF6', 'sxxm', 'zoomx', [40 60], 'zoomy', [0 12], 'plotTopo', true)
 
 % Turn off warning
 warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
@@ -21,9 +20,7 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     end
     
     % 2. Handle zVar input or Interactive prompt
-    % Check if 2nd input is actually a key-value parameter pair (e.g., 'filterAir', false)
-    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','closePool','colormap','bgColor','logZ','zoomx','zoomy','grid','plotTopo','topoColor','topoWidth'})
-        % Shift varargin so the key-value pair isn't lost, then clear zVar to trigger prompt
+    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','closePool','colormap','bgColor','logZ','zoomx','zoomy','grid','plotTopo','topoColor','topoWidth','dpi','deduplicate'})
         varargin = [{zVar}, varargin];
         zVar = [];
     end
@@ -62,18 +59,15 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
         otherwise
             zVar = strtrim(zVar); 
             validVars = {'epsIIm', 'etam', 'Tm', 'rhom', 'im', 'ep', 'sxxm', 'sxym', 'idm', 'all'};
-            % Validate that the input is actually a recognized variable
             if ~any(strcmpi(zVar, validVars))
                 error('Invalid variable requested: "%s". Must be a valid variable name or number (1-10).', zVar);
             end
-            % Ensure exact casing for consistency (e.g., if user typed 'tm', convert to 'Tm')
             matchIdx = find(strcmpi(zVar, validVars));
             zVar = validVars{matchIdx};
     end
     
     % === BATCH PROCESSING LOGIC FOR "ALL" ===
     if strcmp(zVar, 'all')
-        % Parse useParallel and closePool upfront so we manage the pool once across all 9 variables
         pBatch = inputParser;
         pBatch.KeepUnmatched = true;
         addParameter(pBatch, 'useParallel', true, @islogical);
@@ -91,11 +85,10 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
         
         for v = 1:length(allVars)
             fprintf('\n>>> Plotting variable %d/9: %s <<<\n', v, allVars{v});
-            % Recursively call this function for each variable, keeping pool open until batch completes
             SiStER_Plot_ScatterFrames(targetDir, allVars{v}, varargin{:}, 'closePool', false);
         end
         fprintf('\n=== Finished batch plotting all variables ===\n');
-        return; % Exit to prevent running the single-plot logic below (triggers batchPoolCleanup)
+        return;
     end
     % ==============================================
     
@@ -110,9 +103,11 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     addParameter(p, 'figHeight', 600, @isnumeric);
     addParameter(p, 'cLimit', [], @isnumeric);      
     addParameter(p, 'imgFormat', 'png', @ischar); 
+    addParameter(p, 'dpi', 300, @isnumeric);
+    addParameter(p, 'deduplicate', true, @islogical);
     addParameter(p, 'showFigure', false, @islogical); 
     addParameter(p, 'useParallel', true, @islogical); 
-    addParameter(p, 'closePool', true, @islogical);   % Auto-close parpool when top-level call finishes
+    addParameter(p, 'closePool', true, @islogical);
     addParameter(p, 'colormap', 'parula'); 
     addParameter(p, 'bgColor', 'w');
     addParameter(p, 'zoomx', [], @(x) isempty(x) || (isnumeric(x) && numel(x) == 2 && x(1) < x(2)));
@@ -167,110 +162,135 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     if ~isfolder(outDir)
         mkdir(outDir);
     end
-    fprintf('Plots will be saved as .%s in: %s\n', opts.imgFormat, outDir);
+    fprintf('Plots will be saved as .%s (%d DPI) in: %s\n', opts.imgFormat, opts.dpi, outDir);
     
-    % Include topo_x and topo_y if plotTopo is requested
     if opts.plotTopo
         varsToLoad = unique({opts.xVar, opts.yVar, zVar, 'time', 'im', 'topo_x', 'topo_y'});
     else
         varsToLoad = unique({opts.xVar, opts.yVar, zVar, 'time', 'im'});
     end
     
-    % 6. PRE-SCAN: Find Global (or Visible Zoomed) Min/Max to lock limits
-    fprintf('Scanning %d files for limits...\n', numFiles);
-    xMin = inf; xMax = -inf; yMin = inf; yMax = -inf; zMin = inf; zMax = -inf;
-    scanVars = unique({opts.xVar, opts.yVar, zVar, 'im'});
-    
-    for k = 1:numFiles
-        data = load(fullfile(targetDir, matFiles(k).name), scanVars{:});
-        if ~isfield(data, opts.xVar) || ~isfield(data, zVar), continue; end
-        
-        X = data.(opts.xVar); Y = data.(opts.yVar); Z = data.(zVar);
-        if strcmp(opts.xVar, 'xm'), X = X / 1e3; end
-        if strcmp(opts.yVar, 'ym'), Y = Y / 1e3; end
-        
-        mask = true(size(X));
-        if opts.filterAir && isfield(data, 'im')
-            mask = mask & (data.im > 1);
-        end
-        
-        % Restrict Z scan to only markers visible inside zoomx / zoomy
-        if ~isempty(opts.zoomx)
-            mask = mask & (X >= opts.zoomx(1)) & (X <= opts.zoomx(2));
-        end
-        if ~isempty(opts.zoomy)
-            mask = mask & (Y >= opts.zoomy(1)) & (Y <= opts.zoomy(2));
-        end
-        
-        X = X(mask); Y = Y(mask); Z = Z(mask);
-        if opts.logZ, Z = log10(Z); end
-        
-        if isempty(X), continue; end
-        
-        xMin = min(xMin, min(X(:))); xMax = max(xMax, max(X(:)));
-        yMin = min(yMin, min(Y(:))); yMax = max(yMax, max(Y(:)));
-        zMin = min(zMin, min(Z(:))); zMax = max(zMax, max(Z(:)));
+    % Start parallel pool early if requested so both loading and plotting benefit
+    if opts.useParallel && opts.closePool
+        poolCleanup = onCleanup(@() delete(gcp('nocreate')));
     end
     
-    if ~isempty(opts.zoomx)
-        xLims = opts.zoomx;
+    % 6. SINGLE-PASS LOAD & LIMIT SCAN: Load each .mat file once and cache trimmed arrays
+    fprintf('Loading %d files (single pass)...\n', numFiles);
+    frames(numFiles) = struct('X', [], 'Y', [], 'Z', [], 'time', NaN, 'hasTime', false, ...
+                              'topo_x', [], 'topo_y', [], 'fileName', '', 'valid', false);
+    
+    xMinArr = inf(numFiles, 1); xMaxArr = -inf(numFiles, 1);
+    yMinArr = inf(numFiles, 1); yMaxArr = -inf(numFiles, 1);
+    zMinArr = inf(numFiles, 1); zMaxArr = -inf(numFiles, 1);
+    
+    % Pre-compute spatial crop box (with small padding if zoomed)
+    hasZoomX = ~isempty(opts.zoomx);
+    hasZoomY = ~isempty(opts.zoomy);
+    if hasZoomX
+        xPad = 0.02 * (opts.zoomx(2) - opts.zoomx(1));
+        xCrop = [opts.zoomx(1) - xPad, opts.zoomx(2) + xPad];
     else
-        xLims = [xMin, xMax];
+        xCrop = [-inf, inf];
+    end
+    if hasZoomY
+        yPad = 0.02 * (opts.zoomy(2) - opts.zoomy(1));
+        yCrop = [opts.zoomy(1) - yPad, opts.zoomy(2) + yPad];
+    else
+        yCrop = [-inf, inf];
     end
     
-    if ~isempty(opts.zoomy)
-        yLims = opts.zoomy;
+    if opts.useParallel
+        parfor k = 1:numFiles
+            [frames(k), xMinArr(k), xMaxArr(k), yMinArr(k), yMaxArr(k), zMinArr(k), zMaxArr(k)] = ...
+                loadSingleFrame(targetDir, matFiles(k).name, varsToLoad, opts, zVar, hasZoomX, hasZoomY, xCrop, yCrop);
+        end
     else
-        yLims = [yMin, yMax];
+        for k = 1:numFiles
+            [frames(k), xMinArr(k), xMaxArr(k), yMinArr(k), yMaxArr(k), zMinArr(k), zMaxArr(k)] = ...
+                loadSingleFrame(targetDir, matFiles(k).name, varsToLoad, opts, zVar, hasZoomX, hasZoomY, xCrop, yCrop);
+        end
     end
     
-    if ~isempty(opts.cLimit)
-        cLims = opts.cLimit; 
-    else
-        cLims = [zMin, zMax];
-    end
+    xMin = min(xMinArr); xMax = max(xMaxArr);
+    yMin = min(yMinArr); yMax = max(yMaxArr);
+    zMin = min(zMinArr); zMax = max(zMaxArr);
+    
+    if hasZoomX, xLims = opts.zoomx; else, xLims = [xMin, xMax]; end
+    if hasZoomY, yLims = opts.zoomy; else, yLims = [yMin, yMax]; end
+    if ~isempty(opts.cLimit), cLims = opts.cLimit; else, cLims = [zMin, zMax]; end
     
     % --- Fix for uniform variables or flat spatial dimensions ---
     if cLims(1) >= cLims(2)
         if cLims(1) == 0, cLims = [-0.1, 0.1]; 
         else, cLims = [cLims(1) - abs(cLims(1))*0.01, cLims(1) + abs(cLims(1))*0.01]; end
     end
-    
     if xLims(1) >= xLims(2)
         if xLims(1) == 0, xLims = [-0.1, 0.1]; 
         else, xLims = [xLims(1) - abs(xLims(1))*0.01, xLims(1) + abs(xLims(1))*0.01]; end
     end
-    
     if yLims(1) >= yLims(2)
         if yLims(1) == 0, yLims = [-0.1, 0.1]; 
         else, yLims = [yLims(1) - abs(yLims(1))*0.01, yLims(1) + abs(yLims(1))*0.01]; end
     end
     % ------------------------------------------------------------
     
-    fprintf('Limits locked (X: [%.2f, %.2f] km, Y: [%.2f, %.2f] km). Plotting...\n', ...
+    % 7. SUB-PIXEL MARKER DEDUPLICATION (in-memory, before rendering)
+    if opts.deduplicate
+        % Oversample pixel grid by 1.5x so adjacent markers still overlap with zero gaps
+        scaleFactor = 1.5 * (opts.dpi / 96);
+        nPixX = max(200, round(opts.figWidth * scaleFactor));
+        nPixY = max(200, round(opts.figHeight * scaleFactor));
+        dxPix = (xLims(2) - xLims(1)) / nPixX;
+        dyPix = (yLims(2) - yLims(1)) / nPixY;
+        
+        rawCount = 0;
+        keptCount = 0;
+        for k = 1:numFiles
+            if ~frames(k).valid || isempty(frames(k).X), continue; end
+            rawCount = rawCount + numel(frames(k).X);
+            
+            ix = floor((frames(k).X - xLims(1)) / dxPix);
+            iy = floor((frames(k).Y - yLims(1)) / dyPix);
+            % Combine 2D sub-pixel bin into a single integer key
+            pixKey = int64(ix) * int64(nPixY + 10) + int64(iy);
+            [~, keepIdx] = unique(pixKey, 'last');
+            keepIdx = sort(keepIdx); % Preserve original painter's order
+            
+            frames(k).X = frames(k).X(keepIdx);
+            frames(k).Y = frames(k).Y(keepIdx);
+            frames(k).Z = frames(k).Z(keepIdx);
+            keptCount = keptCount + numel(keepIdx);
+        end
+        if rawCount > 0
+            fprintf('Deduplicated markers at sub-pixel resolution: %d -> %d (%.1f%% reduction).\n', ...
+                    round(rawCount/numFiles), round(keptCount/numFiles), 100*(1 - keptCount/rawCount));
+        end
+    end
+    
+    fprintf('Limits locked (X: [%.2f, %.2f] km, Y: [%.2f, %.2f] km). Rendering...\n', ...
             xLims(1), xLims(2), yLims(1), yLims(2));
     
-    % 7. PLOTTING LOOP (Parallel vs Sequential)
+    % 8. PLOTTING LOOP (Parallel vs Sequential with reusable graphics handles)
     if opts.useParallel
-        if opts.closePool
-            poolCleanup = onCleanup(@() delete(gcp('nocreate')));
-        end
         parfor k = 1:numFiles
-            fileName = matFiles(k).name;
-            fullPath = fullfile(targetDir, fileName);
-            
+            if ~frames(k).valid, continue; end
             fig = figure('Visible', 'off', 'Position', [100, 100, opts.figWidth, opts.figHeight], 'Color', opts.bgColor);
-            processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitleVar, xLims, yLims, cLims, outDir, k);
+            [hScat, hTopo, hTitle] = initFrameGraphics(fig, frames(k), opts, zVar, plotTitleVar, xLims, yLims, cLims);
+            updateAndExportFrame(fig, hScat, hTopo, hTitle, frames(k), opts, plotTitleVar, outDir, k);
             close(fig);
         end
     else
         if opts.showFigure, vis = 'on'; else, vis = 'off'; end
         fig = figure('Visible', vis, 'Position', [100, 100, opts.figWidth, opts.figHeight], 'Color', opts.bgColor);
         
-        for k = 1:numFiles
-            fileName = matFiles(k).name;
-            fullPath = fullfile(targetDir, fileName);
-            processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitleVar, xLims, yLims, cLims, outDir, k);
+        firstValid = find([frames.valid], 1, 'first');
+        if ~isempty(firstValid)
+            [hScat, hTopo, hTitle] = initFrameGraphics(fig, frames(firstValid), opts, zVar, plotTitleVar, xLims, yLims, cLims);
+            for k = 1:numFiles
+                if ~frames(k).valid, continue; end
+                updateAndExportFrame(fig, hScat, hTopo, hTitle, frames(k), opts, plotTitleVar, outDir, k);
+            end
         end
         close(fig);
     end
@@ -279,9 +299,14 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
 end
 
 % =========================================================================
-% LOCAL HELPER FUNCTION: Handles the plotting and exporting for a single frame
+% LOCAL HELPER 1: Single-pass .mat load, crop, and limit extraction
 % =========================================================================
-function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitleVar, xLims, yLims, cLims, outDir, k)
+function [fData, xMin, xMax, yMin, yMax, zMin, zMax] = loadSingleFrame(targetDir, fileName, varsToLoad, opts, zVar, hasZoomX, hasZoomY, xCrop, yCrop)
+    fData = struct('X', [], 'Y', [], 'Z', [], 'time', NaN, 'hasTime', false, ...
+                   'topo_x', [], 'topo_y', [], 'fileName', fileName, 'valid', false);
+    xMin = inf; xMax = -inf; yMin = inf; yMax = -inf; zMin = inf; zMax = -inf;
+    
+    fullPath = fullfile(targetDir, fileName);
     try
         data = load(fullPath, varsToLoad{:});
     catch
@@ -293,106 +318,155 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
         return;
     end
     
-    X = data.(opts.xVar); Y = data.(opts.yVar); Z = data.(zVar);
+    X = data.(opts.xVar)(:);
+    Y = data.(opts.yVar)(:);
+    Z = data.(zVar)(:);
     if strcmp(opts.xVar, 'xm'), X = X / 1e3; end
     if strcmp(opts.yVar, 'ym'), Y = Y / 1e3; end
     
     mask = true(size(X));
     if opts.filterAir && isfield(data, 'im')
-        mask = mask & (data.im > 1);
+        mask = mask & (data.im(:) > 1);
     end
     
-    % Filter out markers outside the plot limits (small buffer so edge dots clip cleanly rather than vanishing early)
-    xPad = 0.02 * (xLims(2) - xLims(1));
-    yPad = 0.02 * (yLims(2) - yLims(1));
-    mask = mask & (X >= xLims(1) - xPad) & (X <= xLims(2) + xPad) & ...
-                  (Y >= yLims(1) - yPad) & (Y <= yLims(2) + yPad);
+    % Spatial crop mask
+    if hasZoomX
+        mask = mask & (X >= xCrop(1)) & (X <= xCrop(2));
+    end
+    if hasZoomY
+        mask = mask & (Y >= yCrop(1)) & (Y <= yCrop(2));
+    end
     
     X = X(mask); Y = Y(mask); Z = Z(mask);
     if opts.logZ, Z = log10(Z); end
     
-    % Text color handling 
+    % Compute limits using strictly the unpadded zoom window if zoomed
+    if ~isempty(X)
+        limMask = true(size(X));
+        if hasZoomX
+            limMask = limMask & (X >= opts.zoomx(1)) & (X <= opts.zoomx(2));
+        end
+        if hasZoomY
+            limMask = limMask & (Y >= opts.zoomy(1)) & (Y <= opts.zoomy(2));
+        end
+        if any(limMask)
+            xMin = min(X(limMask)); xMax = max(X(limMask));
+            yMin = min(Y(limMask)); yMax = max(Y(limMask));
+            zMin = min(Z(limMask)); zMax = max(Z(limMask));
+        end
+    end
+    
+    fData.X = X;
+    fData.Y = Y;
+    fData.Z = Z;
+    if isfield(data, 'time')
+        fData.time = data.time;
+        fData.hasTime = true;
+    end
+    if opts.plotTopo && isfield(data, 'topo_x') && isfield(data, 'topo_y')
+        fData.topo_x = data.topo_x / 1e3;
+        fData.topo_y = data.topo_y / 1e3;
+    end
+    fData.valid = true;
+end
+
+% =========================================================================
+% LOCAL HELPER 2: Initialize persistent axes, scatter, topo, and colorbar
+% =========================================================================
+function [hScat, hTopo, hTitle] = initFrameGraphics(fig, fData, opts, zVar, plotTitleVar, xLims, yLims, cLims)
     if isequal(opts.bgColor, 'k') || isequal(opts.bgColor, [0 0 0]) || isequal(opts.bgColor, 'black')
         txtColor = 'w';
     else
         txtColor = 'k';
     end
     
-    % Draw Frame using built-in scatter so ClippingStyle='rectangle' slices edge dots cleanly
     figure(fig);
-    cla;
-    scatter(X, Y, opts.markerSize, Z, 'filled');
+    clf(fig);
+    ax = axes(fig);
+    hScat = scatter(ax, fData.X, fData.Y, opts.markerSize, fData.Z, 'filled');
     
-    % Overlay topography marker chain (topo_x, topo_y) if requested
-    if opts.plotTopo && isfield(data, 'topo_x') && isfield(data, 'topo_y') && ~isempty(data.topo_x)
+    hTopo = [];
+    if opts.plotTopo
         if isempty(opts.topoColor)
             tColor = txtColor;
         else
             tColor = opts.topoColor;
         end
-        hold on;
-        plot(data.topo_x / 1e3, data.topo_y / 1e3, '-', 'Color', tColor, 'LineWidth', opts.topoWidth);
-        hold off;
+        hold(ax, 'on');
+        hTopo = plot(ax, NaN, NaN, '-', 'Color', tColor, 'LineWidth', opts.topoWidth);
+        hold(ax, 'off');
     end
     
-    % Handle time in title
-    if isfield(data, 'time')
-        secPerYr = 365.25 * 24 * 3600;
-        timeYrs = data.time / secPerYr;
-        
-        if timeYrs < 1e3
-            title(sprintf('%s | Time: %.2f yrs (File: %s)', plotTitleVar, timeYrs, fileName), 'FontSize', 14, 'Color', txtColor);
-        elseif timeYrs < 1e5
-            timeKyrs = timeYrs / 1e3;
-            title(sprintf('%s | Time: %.4f kyrs (File: %s)', plotTitleVar, timeKyrs, fileName), 'FontSize', 14, 'Color', txtColor);
-        else
-            timeMyrs = timeYrs / 1e6;
-            title(sprintf('%s | Time: %.4f Myrs (File: %s)', plotTitleVar, timeMyrs, fileName), 'FontSize', 14, 'Color', txtColor);
-        end
-    else
-        title(sprintf('%s | File: %s', plotTitleVar, fileName), 'FontSize', 14, 'Color', txtColor);
-    end
+    hTitle = title(ax, '', 'FontSize', 14, 'Color', txtColor);
+    xlabel(ax, [strrep(opts.xVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
+    ylabel(ax, [strrep(opts.yVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
     
-    xlabel([strrep(opts.xVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
-    ylabel([strrep(opts.yVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
-    
-    % Lock layout and strictly clip markers and topography line to the axes rectangle
-    axis equal;
-    xlim(xLims);
-    ylim(yLims);
-    box on;
-    set(gca, 'YDir', 'reverse', 'FontSize', 12, 'Color', opts.bgColor, ...
+    axis(ax, 'equal');
+    xlim(ax, xLims);
+    ylim(ax, yLims);
+    box(ax, 'on');
+    set(ax, 'YDir', 'reverse', 'FontSize', 12, 'Color', opts.bgColor, ...
         'XColor', txtColor, 'YColor', txtColor, ...
         'Clipping', 'on', 'ClippingStyle', 'rectangle');
     
     if opts.grid
-        grid on;
-        set(gca, 'Layer', 'top');
+        grid(ax, 'on');
+        set(ax, 'Layer', 'top');
     else
-        grid off;
+        grid(ax, 'off');
     end
     
-    % Apply colormap & handle discrete phase plotting (im)
     if strcmp(zVar, 'im')
         minP = round(cLims(1));
         maxP = round(cLims(2));
         numP = max(1, maxP - minP + 1);
         
         baseCmap = feval(opts.colormap, numP);
-        colormap(gca, baseCmap);
-        clim([minP - 0.5, maxP + 0.5]);
+        colormap(ax, baseCmap);
+        clim(ax, [minP - 0.5, maxP + 0.5]);
         
-        cb = colorbar('Color', txtColor);
+        cb = colorbar(ax, 'Color', txtColor);
         cb.Ticks = minP:maxP;
     else
-        colormap(opts.colormap);
-        cb = colorbar('Color', txtColor);
-        clim(cLims);
+        colormap(ax, opts.colormap);
+        cb = colorbar(ax, 'Color', txtColor);
+        clim(ax, cLims);
     end
     ylabel(cb, plotTitleVar, 'FontSize', 12, 'Color', txtColor);
+end
+
+% =========================================================================
+% LOCAL HELPER 3: Update data handles in-place and export cropped frame
+% =========================================================================
+function updateAndExportFrame(fig, hScat, hTopo, hTitle, fData, opts, plotTitleVar, outDir, k)
+    set(hScat, 'XData', fData.X, 'YData', fData.Y, 'CData', fData.Z);
     
-    % Export
-    drawnow;
+    if ~isempty(hTopo)
+        if ~isempty(fData.topo_x)
+            set(hTopo, 'XData', fData.topo_x, 'YData', fData.topo_y);
+        else
+            set(hTopo, 'XData', NaN, 'YData', NaN);
+        end
+    end
+    
+    if fData.hasTime
+        secPerYr = 365.25 * 24 * 3600;
+        timeYrs = fData.time / secPerYr;
+        
+        if timeYrs < 1e3
+            set(hTitle, 'String', sprintf('%s | Time: %.2f yrs (File: %s)', plotTitleVar, timeYrs, fData.fileName));
+        elseif timeYrs < 1e5
+            timeKyrs = timeYrs / 1e3;
+            set(hTitle, 'String', sprintf('%s | Time: %.4f kyrs (File: %s)', plotTitleVar, timeKyrs, fData.fileName));
+        else
+            timeMyrs = timeYrs / 1e6;
+            set(hTitle, 'String', sprintf('%s | Time: %.4f Myrs (File: %s)', plotTitleVar, timeMyrs, fData.fileName));
+        end
+    else
+        set(hTitle, 'String', sprintf('%s | File: %s', plotTitleVar, fData.fileName));
+    end
+    
+    drawnow limitrate;
     imgName = fullfile(outDir, sprintf('frame_%04d.%s', k, opts.imgFormat));
-    exportgraphics(fig, imgName, 'Resolution', 300, 'BackgroundColor', opts.bgColor);
+    exportgraphics(fig, imgName, 'Resolution', opts.dpi, 'BackgroundColor', opts.bgColor);
 end
