@@ -20,7 +20,7 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     end
     
     % 2. Handle zVar input or Interactive prompt
-    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','closePool','colormap','bgColor','logZ','zoomx','zoomy','grid','plotTopo','topoColor','topoWidth','dpi','deduplicate'})
+    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','closePool','maxWorkers','colormap','bgColor','logZ','zoomx','zoomy','grid','plotTopo','topoColor','topoWidth','dpi','deduplicate'})
         varargin = [{zVar}, varargin];
         zVar = [];
     end
@@ -108,6 +108,7 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     addParameter(p, 'showFigure', false, @islogical); 
     addParameter(p, 'useParallel', true, @islogical); 
     addParameter(p, 'closePool', true, @islogical);
+    addParameter(p, 'maxWorkers', 16, @isnumeric);
     addParameter(p, 'colormap', 'parula'); 
     addParameter(p, 'bgColor', 'w');
     addParameter(p, 'zoomx', [], @(x) isempty(x) || (isnumeric(x) && numel(x) == 2 && x(1) < x(2)));
@@ -170,9 +171,18 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
         varsToLoad = unique({opts.xVar, opts.yVar, zVar, 'time', 'im'});
     end
     
-    % Start parallel pool early if requested so both loading and plotting benefit
-    if opts.useParallel && opts.closePool
-        poolCleanup = onCleanup(@() delete(gcp('nocreate')));
+    % Start capped parallel pool so exportgraphics never hits OpenGL/compositor contention
+    if opts.useParallel
+        pool = gcp('nocreate');
+        if isempty(pool)
+            targetWorkers = min([numFiles, opts.maxWorkers]);
+            if targetWorkers > 1
+                parpool('Processes', targetWorkers);
+            end
+        end
+        if opts.closePool
+            poolCleanup = onCleanup(@() delete(gcp('nocreate')));
+        end
     end
     
     % 6. SINGLE-PASS LOAD & LIMIT SCAN: Load each .mat file once and cache trimmed arrays
@@ -237,10 +247,9 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     
     % 7. SUB-PIXEL MARKER DEDUPLICATION (in-memory, before rendering)
     if opts.deduplicate
-        % Oversample pixel grid by 1.5x so adjacent markers still overlap with zero gaps
-        scaleFactor = 1.5 * (opts.dpi / 96);
-        nPixX = max(200, round(opts.figWidth * scaleFactor));
-        nPixY = max(200, round(opts.figHeight * scaleFactor));
+        % Oversample figure pixel grid by 1.5x (DPI-independent) so adjacent markers overlap cleanly
+        nPixX = max(200, round(opts.figWidth * 1.5));
+        nPixY = max(200, round(opts.figHeight * 1.5));
         dxPix = (xLims(2) - xLims(1)) / nPixX;
         dyPix = (yLims(2) - yLims(1)) / nPixY;
         
@@ -467,6 +476,19 @@ function updateAndExportFrame(fig, hScat, hTopo, hTitle, fData, opts, plotTitleV
     end
     
     drawnow limitrate;
+    if ~isfolder(outDir)
+        mkdir(outDir);
+    end
     imgName = fullfile(outDir, sprintf('frame_%04d.%s', k, opts.imgFormat));
-    exportgraphics(fig, imgName, 'Resolution', opts.dpi, 'BackgroundColor', opts.bgColor);
+    try
+        exportgraphics(fig, imgName, 'Resolution', opts.dpi, 'BackgroundColor', opts.bgColor);
+    catch
+        pause(0.2);
+        try
+            exportgraphics(fig, imgName, 'Resolution', opts.dpi, 'BackgroundColor', opts.bgColor);
+        catch
+            set(fig, 'PaperPositionMode', 'auto', 'InvertHardcopy', 'off');
+            print(fig, imgName, '-dpng', sprintf('-r%d', opts.dpi));
+        end
+    end
 end
