@@ -7,6 +7,7 @@ function SiStER_Plot_ScatterFrames(targetDir, zVar, varargin)
 %   SiStER_Plot_ScatterFrames('Wedge_default', 10)    % Plots all 9 variables
 %   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'markerSize', 15, 'figWidth', 1200)
 %   SiStER_Plot_ScatterFrames('Wedge_default', 'Tm', 'zoomx', [35 65], 'zoomy', [0 15], 'grid', true)
+%   SiStER_Plot_ScatterFrames('OTF6', 'sxxm', 'plotTopo', true, 'topoColor', 'r', 'topoWidth', 2)
 
 % Turn off warning
 warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
@@ -21,7 +22,7 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     
     % 2. Handle zVar input or Interactive prompt
     % Check if 2nd input is actually a key-value parameter pair (e.g., 'filterAir', false)
-    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','closePool','colormap','bgColor','logZ','zoomx','zoomy','grid'})
+    if nargin >= 2 && ischar(zVar) && contains(zVar, {'filterAir','xVar','yVar','markerSize','figWidth','figHeight','cLimit','imgFormat','showFigure','useParallel','closePool','colormap','bgColor','logZ','zoomx','zoomy','grid','plotTopo','topoColor','topoWidth'})
         % Shift varargin so the key-value pair isn't lost, then clear zVar to trigger prompt
         varargin = [{zVar}, varargin];
         zVar = [];
@@ -117,6 +118,9 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     addParameter(p, 'zoomx', [], @(x) isempty(x) || (isnumeric(x) && numel(x) == 2 && x(1) < x(2)));
     addParameter(p, 'zoomy', [], @(x) isempty(x) || (isnumeric(x) && numel(x) == 2 && x(1) < x(2)));
     addParameter(p, 'grid', false, @islogical);
+    addParameter(p, 'plotTopo', false, @islogical);
+    addParameter(p, 'topoColor', []);
+    addParameter(p, 'topoWidth', 1.5, @isnumeric);
     % ---------------------------------------
     
     parse(p, varargin{:});
@@ -165,14 +169,20 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     end
     fprintf('Plots will be saved as .%s in: %s\n', opts.imgFormat, outDir);
     
-    varsToLoad = unique({opts.xVar, opts.yVar, zVar, 'time', 'im'}); 
+    % Include topo_x and topo_y if plotTopo is requested
+    if opts.plotTopo
+        varsToLoad = unique({opts.xVar, opts.yVar, zVar, 'time', 'im', 'topo_x', 'topo_y'});
+    else
+        varsToLoad = unique({opts.xVar, opts.yVar, zVar, 'time', 'im'});
+    end
     
     % 6. PRE-SCAN: Find Global (or Visible Zoomed) Min/Max to lock limits
     fprintf('Scanning %d files for limits...\n', numFiles);
     xMin = inf; xMax = -inf; yMin = inf; yMax = -inf; zMin = inf; zMax = -inf;
+    scanVars = unique({opts.xVar, opts.yVar, zVar, 'im'});
     
     for k = 1:numFiles
-        data = load(fullfile(targetDir, matFiles(k).name), varsToLoad{:});
+        data = load(fullfile(targetDir, matFiles(k).name), scanVars{:});
         if ~isfield(data, opts.xVar) || ~isfield(data, zVar), continue; end
         
         X = data.(opts.xVar); Y = data.(opts.yVar); Z = data.(zVar);
@@ -301,16 +311,28 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
     X = X(mask); Y = Y(mask); Z = Z(mask);
     if opts.logZ, Z = log10(Z); end
     
-    % Draw Frame using built-in scatter so ClippingStyle='rectangle' slices edge dots cleanly
-    figure(fig);
-    cla;
-    scatter(X, Y, opts.markerSize, Z, 'filled');
-    
     % Text color handling 
     if isequal(opts.bgColor, 'k') || isequal(opts.bgColor, [0 0 0]) || isequal(opts.bgColor, 'black')
         txtColor = 'w';
     else
         txtColor = 'k';
+    end
+    
+    % Draw Frame using built-in scatter so ClippingStyle='rectangle' slices edge dots cleanly
+    figure(fig);
+    cla;
+    scatter(X, Y, opts.markerSize, Z, 'filled');
+    
+    % Overlay topography marker chain (topo_x, topo_y) if requested
+    if opts.plotTopo && isfield(data, 'topo_x') && isfield(data, 'topo_y') && ~isempty(data.topo_x)
+        if isempty(opts.topoColor)
+            tColor = txtColor;
+        else
+            tColor = opts.topoColor;
+        end
+        hold on;
+        plot(data.topo_x / 1e3, data.topo_y / 1e3, '-', 'Color', tColor, 'LineWidth', opts.topoWidth);
+        hold off;
     end
     
     % Handle time in title
@@ -334,7 +356,7 @@ function processFrame(fig, fullPath, fileName, varsToLoad, opts, zVar, plotTitle
     xlabel([strrep(opts.xVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
     ylabel([strrep(opts.yVar, '_', '\_') ' (km)'], 'FontSize', 12, 'Color', txtColor);
     
-    % Lock layout and strictly clip markers to the axes rectangle
+    % Lock layout and strictly clip markers and topography line to the axes rectangle
     axis equal;
     xlim(xLims);
     ylim(yLims);

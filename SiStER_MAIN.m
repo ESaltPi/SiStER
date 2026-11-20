@@ -98,8 +98,8 @@ SiStER_MoveFiles2Folder(quickPlot)
 
 SiStER_Plot_ScatterFrames(quickPlot, 'im', 'filterAir', false)
 %SiStER_Plot_ScatterFrames(quickSend, 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12])
-SiStER_Plot_ScatterFrames(quickPlot, 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 10)
-SiStER_Plot_ScatterFrames(quickPlot, 'sxxm', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 12)
+SiStER_Plot_ScatterFrames(quickPlot, 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 10, 'plotTopo', true)
+SiStER_Plot_ScatterFrames(quickPlot, 'sxxm', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 10, 'plotTopo', true)
 SiStER_Plot_Grid(quickPlot)
 
 %% testing plotting
