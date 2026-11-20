@@ -12,7 +12,6 @@
 close all
 
 % INITIALIZATION
-quickPlot='OTF6';
 
 % Input File: loads parameter values, model geometry, boundary conditions
 if exist('running_from_SiStER_RUN','var') == 0
@@ -101,7 +100,7 @@ SiStER_Plot_ScatterFrames(quickPlot, 'im', 'filterAir', false)
 %SiStER_Plot_ScatterFrames(quickSend, 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12])
 SiStER_Plot_ScatterFrames(quickPlot, 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 10)
 SiStER_Plot_ScatterFrames(quickPlot, 'sxxm', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 12)
-
+SiStER_Plot_Grid(quickPlot)
 
 %% testing plotting
 return 

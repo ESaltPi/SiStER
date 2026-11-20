@@ -1,6 +1,8 @@
 % SiStER_Input_File_OTF6.m
 % Vertical Cross-Section with Static Bathymetry, Flexible Moho, and Fixed Timestep
 
+quickPlot='OTF6';
+
 % DURATION OF SIMULATION AND FREQUENCY OF OUTPUT %%%%%%%%%%%%%%%%%%%%%%%%%%
 Nt = 10;             % number of time iterations
 dt_out = 1;          % save output every iteration
@@ -30,7 +32,7 @@ y_data = [4e3, 4e3, 6e3,    6e3,  5.5e3, 6e3,  6e3,    4e3,  4e3];
 
 PARAMS.x_data = x_data;
 PARAMS.y_data = y_data;
-PARAMS.moho_depth = 8e3;  % Flexible Moho depth (m) — change for continental/other settings
+PARAMS.moho_depth = 12e3;  % Flexible Moho depth (m) — change for continental/other settings
 
 % GEOMETRY %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Nphase = 3;          % 1: Sticky Water/Air, 2: Crust, 3: Mantle

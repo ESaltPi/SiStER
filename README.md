@@ -17,3 +17,4 @@ New additions for final project by Evan Saltman
 * SiStER_RESUME.m - Resumes a stopped calculation
 * SiStER_MoveFiles2Folder.m - moves recently created ##.mat files to a new directory
 * SiStER_Input.m - Better SiStER file input handler
+* SiStER_Plot_Grid - makes a plot of the grid
