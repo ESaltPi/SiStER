@@ -108,7 +108,7 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     addParameter(p, 'showFigure', false, @islogical); 
     addParameter(p, 'useParallel', true, @islogical); 
     addParameter(p, 'closePool', true, @islogical);
-    addParameter(p, 'maxWorkers', 16, @isnumeric);
+    addParameter(p, 'maxWorkers', 8, @isnumeric);
     addParameter(p, 'colormap', 'parula'); 
     addParameter(p, 'bgColor', 'w');
     addParameter(p, 'zoomx', [], @(x) isempty(x) || (isnumeric(x) && numel(x) == 2 && x(1) < x(2)));
