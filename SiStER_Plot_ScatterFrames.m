@@ -247,9 +247,18 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
     
     % 7. SUB-PIXEL MARKER DEDUPLICATION (in-memory, before rendering)
     if opts.deduplicate
-        % Oversample figure pixel grid by 1.5x (DPI-independent) so adjacent markers overlap cleanly
-        nPixX = max(200, round(opts.figWidth * 1.5));
-        nPixY = max(200, round(opts.figHeight * 1.5));
+        % Map directly to 1x figure pixel grid so markers fill every pixel without exceeding WebGL caps
+        nPixX = max(200, round(opts.figWidth));
+        nPixY = max(200, round(opts.figHeight));
+        
+        % Keep total grid cells under ~600k to prevent SwiftShader WebGL export crashes
+        maxCells = 600000;
+        if (nPixX * nPixY) > maxCells
+            scale = sqrt(maxCells / (nPixX * nPixY));
+            nPixX = max(200, round(nPixX * scale));
+            nPixY = max(200, round(nPixY * scale));
+        end
+        
         dxPix = (xLims(2) - xLims(1)) / nPixX;
         dyPix = (yLims(2) - yLims(1)) / nPixY;
         
@@ -277,8 +286,7 @@ warning('off', 'MATLAB:ui:figure:ScrollableAccessibilityTextSize')
         end
     end
     
-    fprintf('Limits locked (X: [%.2f, %.2f] km, Y: [%.2f, %.2f] km). Rendering...\n', ...
-            xLims(1), xLims(2), yLims(1), yLims(2));
+    fprintf('Limits locked (X: [%.2f, %.2f] km, Y: [%.2f, %.2f] km). Rendering...\n', xLims(1), xLims(2), yLims(1), yLims(2));
     
     % 8. PLOTTING LOOP (Parallel vs Sequential with reusable graphics handles)
     if opts.useParallel
