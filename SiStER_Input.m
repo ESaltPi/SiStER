@@ -8,6 +8,14 @@ if isempty(files)
     files = dir('*.m'); % Fallback to all .m files if pattern isn't matched
 end
 
+% Natural sort so numbered files (e.g., OTF2 vs OTF10) appear in numeric order
+if ~isempty(files)
+    names = {files.name};
+    padded = regexprep(names, '(\d+)', '${sprintf(''%06d'', str2double($1))}');
+    [~, idx] = sort(padded);
+    files = files(idx);
+end
+
 % Loop until a valid file is selected or entered
 while true
     inputStr = strtrim(filename);
