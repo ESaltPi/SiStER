@@ -99,6 +99,7 @@ disp('FIN')
 SiStER_MoveFiles2Folder(quickPlot)
 
 SiStER_Plot_ScatterFrames(quickPlot, 'im', 'filterAir', false, 'closePool', true)
+SiStER_Plot_Grid(quickPlot)
 
 return
 SiStER_Plot_ScatterFrames(quickPlot, 'im', 'filterAir', false, 'closePool', false)

@@ -1,10 +1,10 @@
 % SiStER_Input_File
 %Attempt on HW3
 
-quickPlot='hw3';
+quickPlot='hw3_noslip';
 
 % DURATION OF SIMULATION AND FREQUENCY OF OUTPUT %%%%%%%%%%%%%%%%%%%%%%%%%%
-Nt=1; % max number of time iterations
+Nt=5; % max number of time iterations
 dt_out=1; % output files every "dt_out" iterations
 
 
@@ -29,14 +29,14 @@ Mquad_crit=3; % minimum number of markers allowed in smallest quadrant (for rese
 Nphase=2; % number of phases
 
 % phase 1
-GEOM(1).type=1; % 1 = layer (then specify top and bot) or 2 = circle % 1 = layer (then specify top and bot) or 2 = circle (then specify center and radius)
+GEOM(1).type=3; % 1 = layer (then specify top and bot) or 2 = circle % 1 = layer (then specify top and bot) or 2 = circle (then specify center and radius)
 GEOM(1).top=0;
 GEOM(1).bot=ysize;
 GEOM(1).left=0;
 GEOM(1).right=xsize/2;
 
 % phase 2
-GEOM(2).type=1; % 1 = layer (then specify top and bot) or 2 = circle % 1 = layer (then specify top and bot) or 2 = circle (then specify center and radius)
+GEOM(2).type=3; % 1 = layer (then specify top and bot) or 2 = circle % 1 = layer (then specify top and bot) or 2 = circle (then specify center and radius), 3  rectangle
 GEOM(2).top=0;
 GEOM(2).bot=ysize;
 GEOM(2).left=xsize/2;
@@ -57,11 +57,11 @@ MAT(1).alpha=0;
 % elasticity 
 MAT(1).G=1e18;
 % diffusion creep parameters
-MAT(1).pre_diff=.5/1e20;
+MAT(1).pre_diff=.5/1e18;
 MAT(1).Ediff=0;
 MAT(1).ndiff=1;
 % dislocation creep parameters
-MAT(1).pre_disc=.5/1e20;
+MAT(1).pre_disc=.5/1e18;
 MAT(1).Edisc=0;
 MAT(1).ndisc=1;
 % plasticity
@@ -79,11 +79,11 @@ MAT(2).alpha=0;
 % elasticity 
 MAT(2).G=1e18;
 % diffusion creep parameters
-MAT(2).pre_diff=.5/1e20;
+MAT(2).pre_diff=.5/1e18;
 MAT(2).Ediff=0;
 MAT(2).ndiff=1;
 % dislocation creep parameters
-MAT(2).pre_disc=0.5/1e20;
+MAT(2).pre_disc=0.5/1e18;
 MAT(2).Edisc=0;
 MAT(2).ndisc=1;
 % plasticity
@@ -149,14 +149,16 @@ PARAMS.p0cell=0; % pressure in the top-left corner of the domain (anchor point)
 
 % boundary conditions
 % entries in BC correspond to
-% 1/ rollers? (1=yes, 0=no)
+% 1/ rollers? (1=yes, 0=no) (freeslip vs noslip
 % 2/ type of velocity normal to boundary (0=constant)
 % 3/ value of normal velocity 
 
-BC.top=[1 0 0.];
-BC.bot=[1 0 0.];
-BC.left=[1 0 0.];
-BC.right=[1 0 0.];
+BC.top=[0 0 0 0.];
+BC.bot=[0 0 0 0.];
+BC.left=[0 0 0.];
+BC.right=[0 0 0.];
+BC.top_profile=zeros(1, round(xsize/GRID.dx(1)) + 1); %when no slip, need to set top and bottom velocities manually?
+BC.bot_profile=zeros(1, round(xsize/GRID.dx(1)) + 1);
 PARAMS.BalanceStickyLayer=0; % if set to 1, the code will reset the inflow 
 % / outflow BCs to balance the inflow / outflow of sticky layer material,
 % and rock separately, based on the position of the sticky layer / air
