@@ -4,7 +4,7 @@
 quickPlot='hw3_noslip';
 
 % DURATION OF SIMULATION AND FREQUENCY OF OUTPUT %%%%%%%%%%%%%%%%%%%%%%%%%%
-Nt=5; % max number of time iterations
+Nt=400; % max number of time iterations
 dt_out=1; % output files every "dt_out" iterations
 
 
