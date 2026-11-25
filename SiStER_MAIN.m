@@ -78,7 +78,9 @@ for t=1:Nt % time loop
     % advect markers in current flow field
     % remove markers if necessary
     % add markers if necessary
-    SiStER_update_topography_markers
+    if (isfield(PARAMS, 'hasTopo') && PARAMS.hasTopo) || (isfield(PARAMS, 'YNTopo') && PARAMS.YNTopo == 1)
+        SiStER_update_topography_markers
+    end
     % here we do the same for the marker chain that keeps track of topography
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -96,6 +98,9 @@ disp('FIN')
 %% Move files
 SiStER_MoveFiles2Folder(quickPlot)
 
+SiStER_Plot_ScatterFrames(quickPlot, 'im', 'filterAir', false, 'closePool', true)
+
+return
 SiStER_Plot_ScatterFrames(quickPlot, 'im', 'filterAir', false, 'closePool', false)
 %SiStER_Plot_ScatterFrames(quickSend, 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12])
 SiStER_Plot_ScatterFrames(quickPlot, 'im', 'filterAir', false, 'zoomx', [40 60], 'zoomy', [0 12], 'markerSize', 10, 'plotTopo', true, 'closePool', false)

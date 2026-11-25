@@ -39,7 +39,7 @@ GEOM(1).right=xsize/2;
 GEOM(2).type=1; % 1 = layer (then specify top and bot) or 2 = circle % 1 = layer (then specify top and bot) or 2 = circle (then specify center and radius)
 GEOM(2).top=0;
 GEOM(2).bot=ysize;
-GEOM(2).left=xsize/2+1;
+GEOM(2).left=xsize/2;
 GEOM(2).right=xsize;
 
 

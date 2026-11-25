@@ -54,13 +54,21 @@ end
 Ntopo = PARAMS.Ntopo_markers;
 topo_x = linspace(0, xsize, Ntopo);
 
-if isfield(PARAMS, 'custom_topo_y')
+if isfield(PARAMS, 'custom_topo_y') && ~isempty(PARAMS.custom_topo_y)
     topo_y = PARAMS.custom_topo_y;
-else
+    PARAMS.hasTopo = true;
+elseif isfield(PARAMS, 'x_data') && isfield(PARAMS, 'y_data') && ~isempty(PARAMS.x_data)
+    topo_y = interp1(PARAMS.x_data, PARAMS.y_data, topo_x, 'linear', 'extrap');
+    PARAMS.hasTopo = true;
+elseif GEOM(1).top == 0 && GEOM(1).bot < ysize && (~isfield(GEOM(1), 'right') || GEOM(1).right == xsize)
+    % Standard horizontal sticky-air/water layer at top of domain
     topo_y = GEOM(1).bot * ones(size(topo_x));
+    PARAMS.hasTopo = true;
+else
+    % No sticky-air/topography layer (e.g., closed-box / side-by-side block tests)
+    topo_y = zeros(size(topo_x));
+    PARAMS.hasTopo = false;
 end
-
-topo_marker_spacing = mean(diff(topo_x));
 
 % CUSTOM MARKER PHASE OVERRIDE (Flexible Bathymetry + Flexible Moho Depth)
 if isfield(PARAMS, 'x_data') && isfield(PARAMS, 'y_data') && ~isempty(PARAMS.x_data)

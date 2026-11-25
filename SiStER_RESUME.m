@@ -149,7 +149,9 @@ for t = (t_start + 1):Nt
     
     % MARKER ADVECTION, REMOVAL, AND ADDITION 
     SiStER_move_remove_and_reseed_markers;
-    SiStER_update_topography_markers
+    if (isfield(PARAMS, 'hasTopo') && PARAMS.hasTopo) || (isfield(PARAMS, 'YNTopo') && PARAMS.YNTopo == 1)
+        SiStER_update_topography_markers
+    end
     
     disp('---------------')
     disp(['END OF ITERATION: ' num2str(t) ' out of ' num2str(Nt) ' - SIMULATION TIME: ' num2str(time/365.25/24/3600/1000) ' kyrs.'])
