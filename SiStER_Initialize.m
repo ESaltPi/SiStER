@@ -63,7 +63,7 @@ end
 topo_marker_spacing = mean(diff(topo_x));
 
 % CUSTOM MARKER PHASE OVERRIDE (Flexible Bathymetry + Flexible Moho Depth)
-if isfield(PARAMS, 'x_data') && isfield(PARAMS, 'y_data')
+if isfield(PARAMS, 'x_data') && isfield(PARAMS, 'y_data') && ~isempty(PARAMS.x_data)
     y_seafloor_at_xm = interp1(PARAMS.x_data, PARAMS.y_data, xm, 'linear', 'extrap');
     
     if isfield(PARAMS, 'moho_depth')

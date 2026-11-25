@@ -39,7 +39,7 @@ GEOM(1).right=xsize/2;
 GEOM(2).type=1; % 1 = layer (then specify top and bot) or 2 = circle % 1 = layer (then specify top and bot) or 2 = circle (then specify center and radius)
 GEOM(2).top=0;
 GEOM(2).bot=ysize;
-GEOM(2).left=xsize/2;
+GEOM(2).left=xsize/2+1;
 GEOM(2).right=xsize;
 
 
@@ -52,16 +52,16 @@ GEOM(2).right=xsize;
 % phase 1
 MAT(1).phase=1;
 % density parameters
-MAT(1).rho0=0.01;
+MAT(1).rho0=3200;
 MAT(1).alpha=0;
 % elasticity 
 MAT(1).G=1e18;
 % diffusion creep parameters
-MAT(1).pre_diff=.5/1e18;
+MAT(1).pre_diff=.5/1e20;
 MAT(1).Ediff=0;
 MAT(1).ndiff=1;
 % dislocation creep parameters
-MAT(1).pre_disc=.5/1e18;
+MAT(1).pre_disc=.5/1e20;
 MAT(1).Edisc=0;
 MAT(1).ndisc=1;
 % plasticity
@@ -74,7 +74,7 @@ MAT(1).ecrit=0.1;
 % phase 2
 MAT(2).phase=2;
 % density parameters
-MAT(2).rho0=3400;
+MAT(2).rho0=3300;
 MAT(2).alpha=0;
 % elasticity 
 MAT(2).G=1e18;
@@ -127,14 +127,15 @@ PARAMS.cpref=1000;
 PARAMS.Ntopo_markers=1000; % number of markers in marker chain tracking topography
 PARAMS.YNSurfaceProcesses=0; % surface processes (diffusion of topography) on or off
 PARAMS.topo_kappa=1e-9; % diffusivity of topography (m^2/s)
+PARAMS.FixTopography = 0;       % ON: Locks topography profile & marker interface in place
 
 
 
 % Solver iterations
-PARAMS.Npicard_min=3; % minimum number of Picard iterations per time step
-PARAMS.Npicard_max=50; % maximum number of Picard iterations per time step
-PARAMS.conv_crit_ResL2=1e-3;
-PARAMS.pitswitch=30; % number of Picard iterations at which the solver switches to quasi-Newton
+PARAMS.Npicard_min=10; % minimum number of Picard iterations per time step
+PARAMS.Npicard_max=100; % maximum number of Picard iterations per time step
+PARAMS.conv_crit_ResL2=1e-9;
+PARAMS.pitswitch=50; % number of Picard iterations at which the solver switches to quasi-Newton
 
 
 
